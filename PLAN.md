@@ -55,24 +55,41 @@ inventing an arbitrary threshold.
 Don't touch `evaluate.py` — it's the fixed scoring contract. Using it unmodified
 is what makes reported numbers trustworthy to judges who know this dataset.
 
-## Roles (5 people)
+## 5 People, 5 Features
 
-| # | Role | Owns |
-|---|---|---|
-| 1 | **Agent Orchestrator** | The loop itself: hypothesis queue, LLM calls to propose/write code edits, invoking eval, keep/discard/convergence logic, iteration log. |
-| 2 | **ML Builder A — Loss/Ranking** | Reference implementation of pairwise (BPR) loss in `baseline.py`, exposed as a parametrized experiment the agent can call/toggle. |
-| 3 | **ML Builder B — Sequence/History** | Reference implementation using each user's train-set interaction history (simple version: recent-N item embeddings averaged in; stretch: attention/DIN-style). |
-| 4 | **Infra/Eval/Logging** | Experiment tracker (every iteration -> hypothesis, diff, scores, decision, timing), score-over-iterations chart, oracle-ceiling framing baked into reporting. |
-| 5 | **Integration + Demo/Pitch** | Runs the whole pipeline end-to-end early and often, catches breakage between pieces, owns submission write-up and live demo script, floats to unblock. |
+Everyone has their own Claude to build with, so the split is one concrete,
+independent feature per person — not specialized "roles" that block on each
+other. Build in parallel against the verified baseline (0.5946, already
+confirmed working — don't re-derive it), then integrate.
+
+| # | Feature | Task | Deliverable |
+|---|---|---|---|
+| 1 | **Pairwise Ranking Loss (BPR)** | Change training from "predict long_view yes/no per video" to "video A ranks above video B" for pairs within the same user. README's top-ranked idea — smallest change, most likely direct win. | Working variant, before/after score. |
+| 2 | **User History / Sequence Features** | Pull in each user's past interactions from train — currently completely unused. Start simple: average embeddings of last N watched videos as an extra feature. Stretch: attention over history (DIN-style). | Working variant, before/after score. |
+| 3 | **Multi-Task Learning** | Logs have `is_click`, `is_like`, `is_follow`, `is_comment`, `is_forward`, `play_time_ms` — all unused. Train the model to predict several of these alongside `long_view` (shared embeddings, multiple output heads). | Working variant, before/after score. |
+| 4 | **The Agent Loop** | Build the orchestrator: picks an idea, edits code (or toggles Person 1-3's implementations), runs `baseline.py`, reads the score, decides keep/discard using the README's own convergence rule (eps=0.002, N=3), logs everything. This is what makes it an *agent*, not three people hand-tuning a model. | A loop that runs unattended for multiple iterations and produces a log. |
+| 5 | **Experiment Tracking + Demo** | Build the thing that makes the other four legible: a log/dashboard of every iteration (hypothesis -> code diff -> score -> decision), a score-over-time chart, the oracle-ceiling framing (0.5946 -> 0.8645 max) baked into reporting. Also stitches everyone's pieces into one working repo before the deadline and runs the live demo. | The thing judges actually look at. |
+
+**Optional 6th idea (stretch, no dedicated owner):** watch-time censored
+regression — model actual watch duration with a one-sided loss (README flags
+this as the "some research depth" option, see CWM for reference). Only tackle
+if someone finishes early.
+
+**Already ruled out by organizers, don't retry:** adding more static features,
+increasing embedding dimension (k=8/16/32) — neither moved the score.
+
+**Reminder:** pure user-side features contribute nothing on their own (ranking
+is within-user, so a per-user constant doesn't change order) — only useful
+crossed with item-side features. Relevant for Person 3's multi-task heads.
 
 ## Timeline
 
-1. **Now -> +25%:** Everyone works in parallel against the verified baseline
-   (0.5946, already confirmed — don't re-derive it). Builders 2 & 3 work directly
-   in `baseline.py` behind flags/functions the orchestrator can call.
-2. **+25% -> +60%:** Orchestrator integrates Builders 2 & 3's work as callable
-   experiments; Infra's logging comes online; run the loop for real, even with
-   only 2 ideas wired up.
+1. **Now -> +25%:** Everyone builds their feature in parallel against the
+   verified baseline. Person 4 builds the loop skeleton against a stub/mock
+   experiment while waiting for 1-3 to have something callable.
+2. **+25% -> +60%:** Person 4 wires in Persons 1-3's implementations as
+   callable experiments; Person 5's logging comes online; run the loop for
+   real, even with only 1-2 features wired up.
 3. **+60% -> +85%:** Let the agent run longer iterations unattended — this is
    demo footage (screen-record it working). Fix whatever the real run exposes.
 4. **+85% -> done:** Freeze code, polish the dashboard/log output, rehearse the
