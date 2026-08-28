@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+KuaiRand-Pure/
+KuaiRand-Pure.tar.gz
+submission.csv
+.DS_Store
