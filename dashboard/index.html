@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KuaiRand Agent Run</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* telemetry console for an autonomous research run — cool slate ink,
+     one signal-amber accent for the metric that matters; green/red are
+     state-only, never decoration. */
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --panel2:#f0f2f5; --line:#dde1e7;
+    --ink:#1a1f26; --muted:#5c6673; --accent:#b26a00; --accent-soft:#f0e6d6;
+    --series:#3f7d94; --good:#1f7a44; --bad:#b3341f; --band:rgba(178,106,0,.09);
+    --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+    --sans:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0c1116; --panel:#141b24; --panel2:#10161d; --line:#232c38;
+      --ink:#e8ecf1; --muted:#8a96a5; --accent:#e8a33d; --accent-soft:#2a2114;
+      --series:#6fb3c9; --good:#54c98a; --bad:#e8806b; --band:rgba(232,163,61,.10);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0c1116; --panel:#141b24; --panel2:#10161d; --line:#232c38;
+    --ink:#e8ecf1; --muted:#8a96a5; --accent:#e8a33d; --accent-soft:#2a2114;
+    --series:#6fb3c9; --good:#54c98a; --bad:#e8806b; --band:rgba(232,163,61,.10);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent)}
+  .wrap{max-width:1160px;margin:0 auto;padding:28px 22px 80px}
+  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  h1{font-size:19px;margin:0;letter-spacing:.2px}
+  h1 .run{color:var(--muted);font-weight:500}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:26px;max-width:66ch;text-wrap:pretty}
+  .badge{font-family:var(--mono);font-size:10.5px;font-weight:500;text-transform:uppercase;
+    letter-spacing:.1em;padding:3px 9px;border-radius:999px;border:1px solid var(--line);
+    color:var(--muted)}
+  .badge.running{color:var(--series);border-color:var(--series)}
+  .badge.converged{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+
+  .hero{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+  .hero-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:15px 15px 13px}
+  .hero-card.accent{border-color:var(--accent)}
+  .hc-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .hc-value{font-size:29px;font-weight:600;font-family:var(--mono);margin:7px 0 3px;
+    letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+  .hero-card.accent .hc-value{color:var(--accent)}
+  .hero-card.good .hc-value{color:var(--good)}
+  .hc-sub{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 13px}
+  .s-value{font-family:var(--mono);font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+  .s-label{font-size:11.5px;color:var(--ink);margin-top:2px}
+  .s-sub{font-size:10.5px;color:var(--muted)}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:18px;margin-bottom:18px}
+  .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.09em;
+    color:var(--muted);margin:0 0 14px;font-weight:600}
+  .chart-box{position:relative;height:340px}
+
+  .iter{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden;
+    background:var(--panel2)}
+  .iter-head{display:flex;align-items:center;gap:9px;padding:11px 13px;cursor:pointer;
+    font-size:12.5px;user-select:none}
+  .iter-head:hover{background:var(--panel)}
+  .iter-idx{font-family:var(--mono);color:var(--muted);font-size:11.5px;min-width:26px}
+  .iter-score{color:var(--muted);font-family:var(--mono);font-size:11.5px;margin-left:auto;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+  .iter-dur{font-family:var(--mono);font-size:10.5px;color:var(--muted);flex-shrink:0}
+  .pill{font-family:var(--mono);font-size:10px;font-weight:500;text-transform:uppercase;
+    letter-spacing:.06em;padding:2px 7px;border-radius:5px;border:1px solid var(--line);
+    flex-shrink:0;color:var(--muted)}
+  .pill.method{color:var(--accent);border-color:var(--accent)}
+  .pill.keep{color:var(--good);border-color:var(--good)}
+  .pill.fail{color:var(--bad);border-color:var(--bad)}
+  .iter-body{display:none;padding:2px 13px 15px;border-top:1px solid var(--line)}
+  .iter.open .iter-body{display:block}
+  .h-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    margin:14px 0 5px}
+  .hypo{font-size:13px;color:var(--ink);max-width:72ch}
+  .decision{font-family:var(--mono);font-size:12px;color:var(--accent)}
+  pre.diff,pre.trace{font-family:var(--mono);font-size:11px;background:var(--bg);
+    border:1px solid var(--line);border-radius:8px;padding:11px;overflow-x:auto;margin:0;
+    max-height:340px;overflow-y:auto;line-height:1.5}
+  .d-add{color:var(--good)}.d-del{color:var(--bad)}.d-hunk{color:var(--accent)}
+  .d-ctx{color:var(--muted)}
+  pre.trace{color:var(--bad)}
+
+  .evt{display:flex;align-items:center;gap:10px;font-size:12px;padding:7px 0;
+    border-bottom:1px solid var(--line)}
+  .evt:last-child{border-bottom:0}
+  .evt-name{font-family:var(--mono);color:var(--accent)}
+  .evt-detail{color:var(--muted)}
+  .muted{color:var(--muted);font-size:12.5px}
+  .empty{padding:60px 20px;text-align:center;color:var(--muted)}
+  code{font-family:var(--mono);background:var(--panel2);padding:1px 5px;border-radius:4px;
+    font-size:.92em}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  @media(max-width:820px){.hero,.stats{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>KuaiRand Autonomous Agent · <span class="run" id="run-name">—</span></h1>
+    <span class="badge starting" id="status-badge">…</span>
+  </header>
+  <div class="sub">propose → write code → run <code>evaluate.py</code> → decide keep/discard →
+    reflect. Convergence rule ε=0.002, N=3 (the dataset's own). Progress measured against the
+    oracle ceiling, not 1.0.</div>
+
+  <div id="app">
+    <div class="hero" id="hero"></div>
+    <div class="stats" id="stats"></div>
+
+    <div class="panel">
+      <h2>Validation primary over iterations</h2>
+      <div class="chart-box"><canvas id="chart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h2>Recovery &amp; lifecycle events</h2>
+      <div id="events"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Iteration trace — hypothesis · diff · score · decision</h2>
+      <div id="timeline"></div>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
