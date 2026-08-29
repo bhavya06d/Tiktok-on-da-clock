@@ -1,0 +1,828 @@
+<title>Agent Run Log</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    color-scheme: light;
+    --page:      #f9f9f7;
+    --surface:   #fcfcfb;
+    --surface-2: #f2f1ec;
+    --ink:       #0b0b0b;
+    --ink-2:     #52514e;
+    --ink-muted: #898781;
+    --border:    rgba(11,11,11,0.10);
+    --border-2:  rgba(11,11,11,0.16);
+    --grid:      #e1e0d9;
+    --axis:      #c3c2b7;
+    --accent:        #2a78d6;   /* agent */
+    --accent-soft:   #eaf2fb;
+    --accent-human:  #1baf7a;   /* human */
+    --accent-human-soft: #e6f7f0;
+    --good:      #0ca30c;
+    --good-soft: #e6f7e6;
+    --warning:   #b9790c;
+    --warning-soft: #fdf3df;
+    --critical:  #d03b3b;
+    --zoom-tint: rgba(11,11,11,0.035);
+    --shadow: 0 1px 2px rgba(11,11,11,0.04), 0 8px 24px rgba(11,11,11,0.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      color-scheme: dark;
+      --page:      #0d0d0d;
+      --surface:   #1a1a19;
+      --surface-2: #212120;
+      --ink:       #ffffff;
+      --ink-2:     #c3c2b7;
+      --ink-muted: #898781;
+      --border:    rgba(255,255,255,0.10);
+      --border-2:  rgba(255,255,255,0.18);
+      --grid:      #2c2c2a;
+      --axis:      #383835;
+      --accent:        #3987e5;
+      --accent-soft:   #17243a;
+      --accent-human:  #199e70;
+      --accent-human-soft: #12271f;
+      --good:      #0ca30c;
+      --good-soft: #10281a;
+      --warning:   #fab219;
+      --warning-soft: #2c2410;
+      --critical:  #e66767;
+      --zoom-tint: rgba(255,255,255,0.045);
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --page:      #0d0d0d;
+    --surface:   #1a1a19;
+    --surface-2: #212120;
+    --ink:       #ffffff;
+    --ink-2:     #c3c2b7;
+    --ink-muted: #898781;
+    --border:    rgba(255,255,255,0.10);
+    --border-2:  rgba(255,255,255,0.18);
+    --grid:      #2c2c2a;
+    --axis:      #383835;
+    --accent:        #3987e5;
+    --accent-soft:   #17243a;
+    --accent-human:  #199e70;
+    --accent-human-soft: #12271f;
+    --good:      #0ca30c;
+    --good-soft: #10281a;
+    --warning:   #fab219;
+    --warning-soft: #2c2410;
+    --critical:  #e66767;
+    --zoom-tint: rgba(255,255,255,0.045);
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{
+    background:var(--page);
+    color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:15px;
+    line-height:1.55;
+  }
+  .mono{ font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace; }
+  .tab{ font-variant-numeric:tabular-nums; }
+
+  .wrap{ max-width:920px; margin:0 auto; padding:56px 24px 96px; }
+
+  /* ---------- header ---------- */
+  header.top{ margin-bottom:40px; }
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:11.5px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--ink-muted); font-weight:500;
+    display:flex; align-items:center; gap:8px; margin-bottom:14px;
+  }
+  .eyebrow .dot{ width:5px; height:5px; border-radius:50%; background:var(--ink-muted); }
+  h1{
+    font-size:32px; font-weight:700; letter-spacing:-0.01em;
+    margin:0 0 10px; text-wrap:balance;
+  }
+  .lede{ color:var(--ink-2); font-size:15.5px; max-width:64ch; margin:0 0 20px; }
+  .status-row{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+  .chip{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:"IBM Plex Mono",monospace; font-size:12px; font-weight:600;
+    letter-spacing:.03em; padding:5px 10px 5px 8px; border-radius:5px;
+    border:1px solid var(--border-2);
+  }
+  .chip.good{ background:var(--good-soft); color:var(--good); border-color:transparent; }
+  .chip.warning{ background:var(--warning-soft); color:var(--warning); border-color:transparent; }
+  .chip.plain{ background:var(--surface-2); color:var(--ink-2); }
+  .chip .sq{ width:7px; height:7px; border-radius:2px; background:currentColor; }
+  .meta-text{ font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink-muted); }
+
+  section{ margin-bottom:52px; }
+  .section-head{ margin-bottom:18px; }
+  .section-label{
+    font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--ink-muted); font-weight:500; margin-bottom:6px;
+  }
+  h2{ font-size:20px; font-weight:600; margin:0 0 4px; letter-spacing:-0.01em; }
+  .section-sub{ color:var(--ink-2); font-size:14px; max-width:62ch; }
+
+  /* ---------- hero ---------- */
+  .hero{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:28px 28px 24px; box-shadow:var(--shadow);
+    display:grid; grid-template-columns:1.1fr 1fr; gap:28px;
+  }
+  @media (max-width:720px){ .hero{ grid-template-columns:1fr; } }
+  .hero-figure .figure-label{
+    font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--accent);
+    font-weight:600; letter-spacing:.02em; margin-bottom:8px;
+    display:flex; align-items:center; gap:7px;
+  }
+  .hero-figure .figure-label .swatch{ width:9px; height:9px; border-radius:2px; background:var(--accent); }
+  .figure-value{
+    font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:52px;
+    line-height:1; letter-spacing:-0.02em; margin-bottom:10px;
+  }
+  .figure-delta{
+    display:inline-flex; align-items:center; gap:6px; font-family:"IBM Plex Mono",monospace;
+    font-size:13px; font-weight:600; color:var(--good); background:var(--good-soft);
+    padding:4px 9px; border-radius:5px; margin-bottom:12px;
+  }
+  .figure-delta.neg{ color:var(--critical); background:rgba(208,59,59,0.1); }
+  .figure-caption{ font-size:13.5px; color:var(--ink-2); max-width:40ch; }
+  .figure-caption b{ color:var(--ink); font-weight:600; }
+  .hero-secondary{
+    border-left:1px solid var(--border); padding-left:28px;
+    display:flex; flex-direction:column; justify-content:center; gap:14px;
+  }
+  @media (max-width:720px){ .hero-secondary{ border-left:none; border-top:1px solid var(--border); padding-left:0; padding-top:20px; } }
+  .compare-row{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+  .compare-row .cr-label{ font-size:13px; color:var(--ink-2); }
+  .compare-row .cr-value{ font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:16px; }
+  .compare-note{
+    font-size:12.5px; color:var(--ink-muted); border-top:1px solid var(--border);
+    padding-top:12px; line-height:1.5;
+  }
+
+  /* ---------- stat tiles ---------- */
+  .stat-grid{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:1px;
+    background:var(--border); border:1px solid var(--border); border-radius:12px;
+    overflow:hidden;
+  }
+  @media (max-width:720px){ .stat-grid{ grid-template-columns:repeat(2,1fr); } }
+  .stat{ background:var(--surface); padding:18px 18px 16px; }
+  .stat-label{ font-size:12px; color:var(--ink-muted); margin-bottom:8px; }
+  .stat-value{ font-family:"IBM Plex Mono",monospace; font-size:22px; font-weight:600; letter-spacing:-0.01em; }
+  .stat-value.pending{ color:var(--warning); font-size:16px; }
+  .stat-sub{ font-size:12px; color:var(--ink-2); margin-top:5px; }
+  .stat-sub.warn{ color:var(--warning); }
+  .bar-track{ height:5px; border-radius:3px; background:var(--surface-2); margin-top:9px; overflow:hidden; }
+  .bar-fill{ height:100%; border-radius:3px; background:var(--accent); }
+  .author-stack{ display:flex; height:5px; border-radius:3px; overflow:hidden; margin-top:9px; }
+  .author-stack span{ height:100%; }
+
+  /* ---------- chart ---------- */
+  .chart-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:20px 20px 8px; box-shadow:var(--shadow);
+  }
+  .chart-legend{ display:flex; flex-wrap:wrap; gap:16px; padding:2px 6px 16px; }
+  .legend-item{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-2); }
+  .legend-dot{ width:9px; height:9px; border-radius:50%; flex:none; }
+  .legend-ring{
+    width:11px; height:11px; border-radius:50%; border:2px solid var(--good);
+    flex:none; background:transparent;
+  }
+  #chart-svg{ width:100%; height:auto; display:block; overflow:visible; }
+  .pt-line{ fill:none; stroke:var(--ink-muted); stroke-width:2; }
+  .pt-dot{ cursor:pointer; }
+  .pt-ring{ fill:none; stroke:var(--good); stroke-width:2; }
+  .pt-value{ font-family:"IBM Plex Mono",monospace; font-size:11px; font-weight:600; fill:var(--ink); }
+  .pt-xlabel{ font-family:"IBM Plex Mono",monospace; font-size:10.5px; fill:var(--ink-muted); }
+  .axis-line{ stroke:var(--axis); stroke-width:1; }
+  .grid-line{ stroke:var(--grid); stroke-width:1; }
+  .ytick{ font-family:"IBM Plex Mono",monospace; font-size:10.5px; fill:var(--ink-muted); }
+  .ref-line{ stroke:var(--ink-muted); stroke-width:1.2; stroke-dasharray:3 3; }
+  .ref-label{ font-family:"IBM Plex Mono",monospace; font-size:10.5px; fill:var(--ink-2); }
+  .empty-note{ font-size:13px; color:var(--ink-muted); padding:40px 0; text-align:center; }
+  .tooltip{
+    position:absolute; pointer-events:none; background:var(--surface); border:1px solid var(--border-2);
+    border-radius:9px; padding:11px 13px; box-shadow:var(--shadow); font-size:12.5px;
+    max-width:280px; opacity:0; transition:opacity .1s ease; z-index:5;
+  }
+  .tooltip.show{ opacity:1; }
+  .tooltip .tt-name{ font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:12.5px; margin-bottom:3px; }
+  .tooltip .tt-hyp{ color:var(--ink-2); font-size:11.5px; line-height:1.45; margin-bottom:7px; }
+  .tooltip .tt-row{ display:flex; justify-content:space-between; gap:14px; font-family:"IBM Plex Mono",monospace; font-size:11.5px; }
+  .tooltip .tt-row + .tt-row{ margin-top:2px; }
+  .tooltip .tt-decision{ margin-top:7px; font-size:11px; font-weight:600; }
+
+  /* ---------- oracle range ---------- */
+  .range-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:26px 28px 22px; box-shadow:var(--shadow);
+  }
+  .range-track-wrap{ position:relative; margin:46px 0 34px; }
+  .range-track-wrap.zoom{ margin:38px 0 12px; }
+  .range-track{ position:relative; height:10px; border-radius:6px; background:var(--surface-2); }
+  .range-headroom{ position:absolute; top:0; height:100%; background:var(--accent-soft); }
+  .range-zoom-mark{
+    position:absolute; top:-5px; height:20px; border-left:1.5px dashed var(--border-2);
+    border-right:1.5px dashed var(--border-2); background:var(--zoom-tint);
+  }
+  .zoom-divider{
+    display:flex; align-items:center; gap:10px; margin:8px 0 0;
+    font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--ink-muted);
+  }
+  .zoom-divider::before, .zoom-divider::after{ content:""; flex:1; height:1px; background:var(--grid); }
+  .range-pin{ position:absolute; top:50%; transform:translate(-50%,-50%); }
+  .range-pin .pin-dot{
+    width:13px; height:13px; border-radius:50%; border:2.5px solid var(--surface);
+    box-shadow:0 0 0 1px var(--border-2);
+  }
+  .range-pin .pin-label{
+    position:absolute; top:-40px; left:50%; transform:translateX(-50%);
+    text-align:center; white-space:nowrap;
+  }
+  .range-pin.below .pin-label{ top:20px; }
+  .pin-name{ font-size:11px; color:var(--ink-2); margin-bottom:2px; }
+  .pin-val{ font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:600; }
+  .range-ticks{ display:flex; justify-content:space-between; margin-top:8px; }
+  .range-ticks span{ font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-muted); }
+  .range-caption{
+    display:flex; gap:28px; flex-wrap:wrap; padding-top:16px; border-top:1px solid var(--border);
+  }
+  .range-caption .rc-item{ font-size:13px; color:var(--ink-2); max-width:30ch; }
+  .range-caption .rc-item b{ color:var(--ink); font-family:"IBM Plex Mono",monospace; font-weight:600; }
+
+  /* ---------- iteration log ---------- */
+  .log-list{ display:flex; flex-direction:column; gap:14px; }
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:20px 22px; box-shadow:var(--shadow);
+  }
+  .card-top{ display:flex; align-items:flex-start; gap:14px; }
+  .card-num{
+    font-family:"IBM Plex Mono",monospace; font-size:12px; font-weight:600; color:var(--ink-muted);
+    background:var(--surface-2); border-radius:6px; width:28px; height:28px; flex:none;
+    display:flex; align-items:center; justify-content:center; margin-top:1px;
+  }
+  .card-headline{ flex:1; min-width:0; }
+  .card-title-row{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:6px; }
+  .card-name{ font-family:"IBM Plex Mono",monospace; font-size:14.5px; font-weight:600; }
+  .badge{
+    font-family:"IBM Plex Mono",monospace; font-size:10.5px; font-weight:600; letter-spacing:.03em;
+    text-transform:uppercase; padding:3px 7px; border-radius:4px; line-height:1.3;
+  }
+  .badge.author-agent{ background:var(--accent-soft); color:var(--accent); }
+  .badge.author-human{ background:var(--accent-human-soft); color:var(--accent-human); }
+  .badge.author-baseline{ background:var(--surface-2); color:var(--ink-muted); }
+  .badge.decision-kept{ background:var(--good-soft); color:var(--good); }
+  .badge.decision-discard{ background:var(--surface-2); color:var(--ink-2); }
+  .badge.decision-error{ background:rgba(208,59,59,0.12); color:var(--critical); }
+  .badge.decision-auto{ background:var(--good-soft); color:var(--good); border:1px dashed var(--good); }
+  .card-hyp{ color:var(--ink-2); font-size:13.5px; line-height:1.55; margin-bottom:14px; max-width:74ch; }
+  .card-metrics{
+    display:grid; grid-template-columns:auto repeat(3,minmax(0,1fr)); gap:2px 22px;
+    font-family:"IBM Plex Mono",monospace; font-size:12.5px; margin-bottom:12px;
+  }
+  .cm-head{ color:var(--ink-muted); font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; padding-bottom:4px; }
+  .cm-rowlabel{ color:var(--ink-2); padding-right:6px; }
+  .cm-val{ font-weight:500; }
+  .cm-val.delta-pos{ color:var(--good); }
+  .cm-val.delta-neg{ color:var(--critical); }
+  .card-foot{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .card-time{ font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-muted); }
+  .code-toggle{
+    font-family:"IBM Plex Mono",monospace; font-size:11.5px; font-weight:600; color:var(--accent);
+    background:none; border:1px solid var(--border-2); border-radius:6px; padding:5px 10px;
+    cursor:pointer;
+  }
+  .code-toggle:hover{ background:var(--accent-soft); }
+  .code-block{
+    display:none; margin-top:14px; background:var(--page); border:1px solid var(--border);
+    border-radius:8px; padding:14px 16px; overflow-x:auto; max-height:480px; overflow-y:auto;
+  }
+  .code-block.open{ display:block; }
+  .code-block pre{ margin:0; font-family:"IBM Plex Mono",monospace; font-size:12px; line-height:1.6; }
+  .code-block code{ white-space:pre; }
+  .error-block{
+    display:none; margin-top:14px; background:rgba(208,59,59,0.07); border:1px solid rgba(208,59,59,0.25);
+    border-radius:8px; padding:12px 16px; font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--critical);
+  }
+  .error-block.open{ display:block; }
+  .tok-kw{ color:var(--accent); font-weight:600; }
+  .tok-com{ color:var(--ink-muted); font-style:italic; }
+
+  /* ---------- footer ---------- */
+  .footer-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:22px 24px; box-shadow:var(--shadow);
+  }
+  .footer-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-bottom:18px; }
+  @media (max-width:720px){ .footer-grid{ grid-template-columns:1fr; } }
+  .fg-label{ font-size:12px; color:var(--ink-muted); margin-bottom:6px; }
+  .fg-value{ font-family:"IBM Plex Mono",monospace; font-size:15px; font-weight:600; margin-bottom:6px; }
+  .fg-value.pending{ color:var(--warning); }
+  .guardrail{
+    display:flex; gap:10px; align-items:flex-start; padding-top:16px; border-top:1px solid var(--border);
+    font-size:12.5px; color:var(--ink-2);
+  }
+  .guardrail b{ color:var(--ink); }
+  footer.page-footer{
+    text-align:center; font-family:"IBM Plex Mono",monospace; font-size:11.5px;
+    color:var(--ink-muted); margin-top:40px;
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="top">
+    <div class="eyebrow"><span class="dot"></span>KuaiRand-Pure &middot; TikTok TechJam 2026, Track 2</div>
+    <h1>Autonomous agent run log</h1>
+    <p class="lede">agent.py's run log for the KuaiRand-Pure baseline: hypothesis, code, score, and decision for every attempt.</p>
+    <div class="status-row" id="status-row"></div>
+  </header>
+
+  <section id="hero-section">
+    <div class="hero" id="hero"></div>
+  </section>
+
+  <section id="stats-section">
+    <div class="stat-grid" id="stat-grid"></div>
+  </section>
+
+  <section id="chart-section">
+    <div class="section-head">
+      <div class="section-label">Development loop &middot; validation split</div>
+      <h2>Score trajectory, attempt by attempt</h2>
+      <p class="section-sub">Validation&#8209;split scores &mdash; what agent.py used to decide keep vs.&nbsp;discard. The hidden test set isn't part of this loop.</p>
+    </div>
+    <div class="chart-card">
+      <div class="chart-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:var(--ink-muted)"></span>baseline</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--accent-human)"></span>human&#8209;authored</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>agent&#8209;authored</span>
+        <span class="legend-item"><span class="legend-ring"></span>became a champion (either track)</span>
+      </div>
+      <svg id="chart-svg" viewBox="0 0 860 300"></svg>
+      <div id="chart-tooltip" class="tooltip"></div>
+    </div>
+  </section>
+
+  <section id="oracle-section">
+    <div class="section-head">
+      <div class="section-label">Hidden test &middot; scored once</div>
+      <h2>Score vs. the oracle ceiling</h2>
+      <p class="section-sub">Primary score isn't bounded by 1.0 &mdash; a perfect ranking using the true labels only reaches the ceiling shown below, since some users never long&#8209;view anything and others always do.</p>
+    </div>
+    <div class="range-card">
+      <div class="range-track-wrap">
+        <div class="range-track" id="range-track">
+          <div class="range-headroom" id="range-headroom"></div>
+          <div class="range-zoom-mark" id="range-zoom-mark"></div>
+        </div>
+      </div>
+      <div class="range-ticks" id="range-ticks-main"></div>
+
+      <div class="zoom-divider"><span>zoomed in: this run's results</span></div>
+
+      <div class="range-track-wrap zoom">
+        <div class="range-track" id="range-track-2"></div>
+      </div>
+      <div class="range-ticks" id="range-ticks-2"></div>
+
+      <div class="range-caption" id="range-caption"></div>
+    </div>
+  </section>
+
+  <section id="log-section">
+    <div class="section-head">
+      <div class="section-label">Per&#8209;attempt detail</div>
+      <h2>Every attempt, in order</h2>
+      <p class="section-sub">Generated from <span class="mono">agent_log.jsonl</span>, unedited.</p>
+    </div>
+    <div class="log-list" id="log-list"></div>
+  </section>
+
+  <section id="footer-section">
+    <div class="footer-card">
+      <div class="footer-grid" id="footer-grid"></div>
+      <div class="guardrail">
+        <b>evaluate.py was never modified.</b> Every score here &mdash; kept or discarded &mdash; used the organizers' scoring code, unchanged, on the fixed train/valid/test split.
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer class="page-footer" id="page-footer"></footer>
+
+<script type="application/json" id="run-data">
+__RUN_DATA__
+</script>
+
+<script>
+(function(){
+  var data = JSON.parse(document.getElementById('run-data').textContent);
+  var log = data.log;
+  var summary = data.summary;
+  var bl = data.baseline.scores;
+  var generatedAt = data.generated_at;
+
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function fmt4(x){ return (x === null || x === undefined) ? '—' : x.toFixed(4); }
+  function authorClass(a){ return a === 'agent' ? 'author-agent' : (a === 'human' ? 'author-human' : 'author-baseline'); }
+  function authorColorVar(a){ return a === 'agent' ? '--accent' : (a === 'human' ? '--accent-human' : '--ink-muted'); }
+  function findEntry(name){ return log.filter(function(r){ return r.experiment === name; })[0]; }
+  function fmtSeconds(s){
+    if (s < 60) return s.toFixed(0) + 's';
+    if (s < 3600) return Math.floor(s / 60) + 'm ' + Math.round(s % 60) + 's';
+    return (s / 3600).toFixed(1) + 'h';
+  }
+  function fmtTokens(n){
+    if (n === null || n === undefined) return null;
+    return n.toLocaleString('en-US');
+  }
+
+  var baselineTest = bl.fm_official.test.primary;
+  var baselineValid = bl.fm_official.valid.primary;
+  var oracleTest = bl.oracle_ceiling.test.primary;
+  var randomTest = bl.random.test.primary;
+  var popTest = bl.item_popularity.test.primary;
+
+  var champTest = summary.champion_test ? summary.champion_test.primary : null;
+  var autoTest = summary.autonomous_champion_test ? summary.autonomous_champion_test.primary : null;
+  var sameChampion = summary.champion && summary.champion === summary.autonomous_champion;
+
+  /* ================= header status ================= */
+  var statusRow = document.getElementById('status-row');
+  var statusChip = summary.converged
+    ? '<span class="chip good"><span class="sq"></span>CONVERGED</span>'
+    : (summary.attempts >= summary.iteration_cap
+        ? '<span class="chip warning"><span class="sq"></span>STOPPED &middot; ITERATION CAP</span>'
+        : (summary.total_wall_clock_seconds >= summary.wall_clock_cap_seconds
+            ? '<span class="chip warning"><span class="sq"></span>STOPPED &middot; WALL-CLOCK CAP</span>'
+            : '<span class="chip plain">IN PROGRESS</span>'));
+  var dateStr = '';
+  if (log.length){
+    var start = new Date(log[0].timestamp * 1000);
+    var last = log[log.length - 1];
+    var end = new Date((last.timestamp + last.seconds) * 1000);
+    var opts = {year:'numeric', month:'short', day:'numeric'};
+    var timeOpts = {hour:'2-digit', minute:'2-digit'};
+    dateStr = start.toLocaleDateString(undefined, opts) + ' &middot; ' +
+      start.toLocaleTimeString(undefined, timeOpts) + '&ndash;' + end.toLocaleTimeString(undefined, timeOpts);
+  }
+  statusRow.innerHTML = statusChip +
+    '<span class="chip plain">' + summary.attempts + ' of ' + summary.iteration_cap + ' max iterations</span>' +
+    '<span class="chip plain">' + summary.manual_interventions + ' of ' + summary.attempts + ' attempts human&#8209;assisted</span>' +
+    (dateStr ? '<span class="meta-text">run ' + dateStr + '</span>' : '');
+
+  /* ================= hero ================= */
+  var hero = document.getElementById('hero');
+  if (autoTest !== null){
+    var autoDelta = autoTest - baselineTest;
+    var autoEntry = findEntry(summary.autonomous_champion);
+    var deltaCls = autoDelta >= 0 ? '' : ' neg';
+    var deltaArrow = autoDelta >= 0 ? '&#8593;' : '&#8595;';
+    var figureHtml =
+      '<div class="hero-figure">' +
+        '<div class="figure-label"><span class="swatch"></span>AUTONOMOUS CHAMPION &middot; HIDDEN-TEST PRIMARY</div>' +
+        '<div class="figure-value tab">' + autoTest.toFixed(4) + '</div>' +
+        '<div class="figure-delta' + deltaCls + '">' + deltaArrow + ' ' + (autoDelta >= 0 ? '+' : '') + autoDelta.toFixed(4) + ' vs. official baseline (' + baselineTest.toFixed(4) + ')</div>' +
+        '<div class="figure-caption"><b>' + esc(summary.autonomous_champion) + '</b>' +
+          (autoEntry ? ': ' + esc(autoEntry.description) : '') + ' Written by the agent, no human input.</div>' +
+      '</div>';
+
+    var secondaryRows =
+      '<div class="compare-row"><span class="cr-label">Official baseline (organizer FM)</span><span class="cr-value tab">' + baselineTest.toFixed(4) + '</span></div>' +
+      '<div class="compare-row"><span class="cr-label">Overall best achievable (any author)</span><span class="cr-value tab">' + (champTest !== null ? champTest.toFixed(4) : '—') + '</span></div>' +
+      '<div class="compare-row"><span class="cr-label">Autonomous champion (agent&#8209;only)</span><span class="cr-value tab" style="color:var(--accent)">' + autoTest.toFixed(4) + '</span></div>';
+
+    var note;
+    if (sameChampion){
+      note = 'The agent\'s own idea is the best result in this run. No human&#8209;authored idea beat it.';
+    } else if (champTest !== null){
+      var gap = champTest - autoTest;
+      note = '<span class="mono">' + esc(summary.champion) + '</span> (human&#8209;written) scored ' + gap.toFixed(4) + ' higher. The agent\'s result still beats baseline on its own.';
+    } else {
+      note = 'No other attempt has beaten this yet.';
+    }
+
+    hero.innerHTML = figureHtml +
+      '<div class="hero-secondary">' + secondaryRows + '<div class="compare-note">' + note + '</div></div>';
+  } else {
+    hero.innerHTML =
+      '<div class="hero-figure">' +
+        '<div class="figure-label"><span class="swatch"></span>AUTONOMOUS CHAMPION</div>' +
+        '<div class="figure-value" style="font-size:28px;color:var(--ink-muted)">not found yet</div>' +
+        '<div class="figure-caption">No agent&#8209;authored experiment has beaten the field yet.</div>' +
+      '</div>' +
+      '<div class="hero-secondary"><div class="compare-row"><span class="cr-label">Official baseline</span><span class="cr-value tab">' + baselineTest.toFixed(4) + '</span></div>' +
+      (champTest !== null ? '<div class="compare-row"><span class="cr-label">Best achievable so far</span><span class="cr-value tab">' + champTest.toFixed(4) + '</span></div>' : '') + '</div>';
+  }
+
+  /* ================= stat tiles ================= */
+  var ac = summary.author_counts || {};
+  var total = summary.attempts || 1;
+  var segs = ['baseline', 'human', 'agent'].map(function(k){
+    var colorVar = k === 'agent' ? '--accent' : (k === 'human' ? '--accent-human' : '--ink-muted');
+    var n = ac[k] || 0;
+    return n > 0 ? '<span style="width:' + (n / total * 100) + '%;background:var(' + colorVar + ')"></span>' : '';
+  }).join('');
+  var breakdown = ['baseline', 'human', 'agent'].filter(function(k){ return ac[k]; })
+    .map(function(k){ return ac[k] + '&nbsp;' + k; }).join(' &middot; ');
+
+  var tokensFmt = fmtTokens(summary.total_llm_tokens);
+  var stats =
+    '<div class="stat"><div class="stat-label">Attempts run</div>' +
+      '<div class="stat-value tab">' + summary.attempts + '</div>' +
+      '<div class="stat-sub">of ' + summary.iteration_cap + '&#8209;iteration cap</div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + (summary.attempts / summary.iteration_cap * 100) + '%"></div></div></div>' +
+    '<div class="stat"><div class="stat-label">Manual interventions</div>' +
+      '<div class="stat-value tab">' + summary.manual_interventions + ' <span style="color:var(--ink-muted);font-size:14px;font-weight:500">/ ' + summary.attempts + '</span></div>' +
+      '<div class="stat-sub">' + breakdown + '</div>' +
+      '<div class="author-stack">' + segs + '</div></div>' +
+    '<div class="stat"><div class="stat-label">Agent wall&#8209;clock</div>' +
+      '<div class="stat-value tab">' + fmtSeconds(summary.total_wall_clock_seconds) + '</div>' +
+      '<div class="stat-sub">of ' + fmtSeconds(summary.wall_clock_cap_seconds) + ' cap (' + (summary.total_wall_clock_seconds / summary.wall_clock_cap_seconds * 100).toFixed(1) + '%) &middot; ' + (summary.gpu_hours ? summary.gpu_hours + ' GPU&#8209;h' : 'CPU only') + '</div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(summary.total_wall_clock_seconds / summary.wall_clock_cap_seconds * 100, 0.5) + '%"></div></div></div>' +
+    '<div class="stat"><div class="stat-label">LLM tokens used</div>' +
+      (tokensFmt
+        ? '<div class="stat-value tab">' + tokensFmt + '</div><div class="stat-sub">input + output, this run</div>'
+        : '<div class="stat-value pending">pending</div><div class="stat-sub warn">not auto&#8209;tracked &mdash; pull from usage panel</div>') +
+    '</div>';
+  document.getElementById('stat-grid').innerHTML = stats;
+
+  /* ================= chart ================= */
+  var svg = document.getElementById('chart-svg');
+  var chartCard = document.querySelector('.chart-card');
+  var tooltip = document.getElementById('chart-tooltip');
+  var svgns = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs){
+    var e = document.createElementNS(svgns, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  if (log.length === 0){
+    svg.style.display = 'none';
+    var note = document.createElement('div');
+    note.className = 'empty-note';
+    note.textContent = 'No attempts logged yet — run agent.py first.';
+    chartCard.insertBefore(note, tooltip);
+  } else {
+    var W = 860, H = 300, padL = 46, padR = 24, padT = 34, padB = 40;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var vals = log.map(function(r){ return r.status === 'ok' ? r.valid.primary : null; }).filter(function(v){ return v !== null; });
+    var vMin = Math.min.apply(null, vals.concat([baselineValid])), vMax = Math.max.apply(null, vals.concat([baselineValid]));
+    var vPad = Math.max((vMax - vMin) * 0.25, 0.004);
+    var yMin = vMin - vPad, yMax = vMax + vPad;
+
+    function xFor(i){ return log.length > 1 ? padL + (plotW * i) / (log.length - 1) : padL + plotW / 2; }
+    function yFor(v){ return padT + plotH * (1 - (v - yMin) / (yMax - yMin)); }
+
+    var stepGuess = (yMax - yMin) / 5;
+    var mag = Math.pow(10, Math.floor(Math.log(stepGuess) / Math.LN10));
+    var step = Math.ceil(stepGuess / mag) * mag;
+    var ticks = [];
+    for (var t = Math.ceil(yMin / step) * step; t <= yMax; t += step) ticks.push(t);
+    ticks.forEach(function(t){
+      var y = yFor(t);
+      svg.appendChild(el('line', {x1: padL, x2: W - padR, y1: y, y2: y, class: 'grid-line'}));
+      var txt = el('text', {x: padL - 10, y: y + 4, class: 'ytick', 'text-anchor': 'end'});
+      txt.textContent = t.toFixed(3);
+      svg.appendChild(txt);
+    });
+    svg.appendChild(el('line', {x1: padL, x2: padL, y1: padT, y2: H - padB, class: 'axis-line'}));
+    svg.appendChild(el('line', {x1: padL, x2: W - padR, y1: H - padB, y2: H - padB, class: 'axis-line'}));
+
+    var by = yFor(baselineValid);
+    svg.appendChild(el('line', {x1: padL, x2: W - padR, y1: by, y2: by, class: 'ref-line'}));
+    var refLabel = el('text', {x: W - padR, y: by - 7, class: 'ref-label', 'text-anchor': 'end'});
+    refLabel.textContent = 'baseline valid · ' + baselineValid.toFixed(4);
+    svg.appendChild(refLabel);
+
+    var okPoints = log.map(function(r, i){ return r.status === 'ok' ? {i: i, v: r.valid.primary} : null; }).filter(Boolean);
+    if (okPoints.length > 1){
+      var pathD = okPoints.map(function(p, idx){ return (idx === 0 ? 'M' : 'L') + xFor(p.i) + ',' + yFor(p.v); }).join(' ');
+      svg.appendChild(el('path', {d: pathD, class: 'pt-line'}));
+    }
+
+    log.forEach(function(r, i){
+      var cx = xFor(i);
+      if (r.status !== 'ok'){
+        var ex = el('text', {x: cx, y: yFor(yMin + (yMax - yMin) / 2), class: 'pt-value', 'text-anchor': 'middle', fill: 'var(--critical)'});
+        ex.textContent = 'error';
+        svg.appendChild(ex);
+        var xl0 = el('text', {x: cx, y: H - padB + 18, class: 'pt-xlabel', 'text-anchor': 'middle'});
+        xl0.textContent = r.experiment.length > 14 ? r.experiment.slice(0, 13) + '…' : r.experiment;
+        svg.appendChild(xl0);
+        return;
+      }
+      var cy = yFor(r.valid.primary);
+      var becameChampion = /KEPT/.test(r.decision) || (r.auto_decision && /KEPT/.test(r.auto_decision));
+      var g = el('g', {class: 'pt-dot'});
+      if (becameChampion) g.appendChild(el('circle', {cx: cx, cy: cy, r: 8, class: 'pt-ring'}));
+      g.appendChild(el('circle', {cx: cx, cy: cy, r: 5.5, fill: 'var(' + authorColorVar(r.author) + ')', stroke: 'var(--surface)', 'stroke-width': 2}));
+      var val = el('text', {x: cx, y: cy - (becameChampion ? 16 : 12), class: 'pt-value tab', 'text-anchor': 'middle'});
+      val.textContent = r.valid.primary.toFixed(4);
+      g.appendChild(val);
+      var xl = el('text', {x: cx, y: H - padB + 18, class: 'pt-xlabel', 'text-anchor': 'middle'});
+      xl.textContent = r.experiment.length > 14 ? r.experiment.slice(0, 13) + '…' : r.experiment;
+      g.appendChild(xl);
+      var xl2 = el('text', {x: cx, y: H - padB + 31, class: 'pt-xlabel', 'text-anchor': 'middle', fill: 'var(--ink-muted)'});
+      xl2.textContent = '#' + (i + 1);
+      g.appendChild(xl2);
+      g.addEventListener('mousemove', function(evt){
+        var rect = chartCard.getBoundingClientRect();
+        var decisionColor = /KEPT/.test(r.decision) ? 'var(--good)' : 'var(--ink-2)';
+        tooltip.innerHTML =
+          '<div class="tt-name">' + esc(r.experiment) + '</div>' +
+          '<div class="tt-hyp">' + esc(r.description) + '</div>' +
+          '<div class="tt-row"><span>valid primary</span><span class="tab">' + fmt4(r.valid.primary) + '</span></div>' +
+          '<div class="tt-row"><span>test primary</span><span class="tab">' + fmt4(r.test.primary) + '</span></div>' +
+          '<div class="tt-row"><span>duration</span><span class="tab">' + r.seconds + 's</span></div>' +
+          '<div class="tt-decision" style="color:' + decisionColor + '">' + esc(r.decision) + (r.auto_decision ? ' · ' + esc(r.auto_decision) : '') + '</div>';
+        var lx = evt.clientX - rect.left + 14, ly = evt.clientY - rect.top + 14;
+        if (lx + 280 > rect.width) lx = evt.clientX - rect.left - 294;
+        tooltip.style.left = lx + 'px'; tooltip.style.top = ly + 'px';
+        tooltip.classList.add('show');
+      });
+      g.addEventListener('mouseleave', function(){ tooltip.classList.remove('show'); });
+      svg.appendChild(g);
+    });
+  }
+
+  /* ================= oracle range ================= */
+  var RANGE_MIN = 0.45, RANGE_MAX = 0.90;
+  function pct(v){ return ((v - RANGE_MIN) / (RANGE_MAX - RANGE_MIN)) * 100; }
+  function renderPins(trackId, pinList, pctFn){
+    var track = document.getElementById(trackId);
+    pinList.forEach(function(p){
+      var pin = document.createElement('div');
+      pin.className = 'range-pin' + (p.below ? ' below' : '');
+      pin.style.left = pctFn(p.val) + '%';
+      pin.innerHTML =
+        '<div class="pin-label"><div class="pin-name">' + esc(p.name) + '</div><div class="pin-val tab" style="color:' + p.color + '">' + p.val.toFixed(4) + '</div></div>' +
+        '<div class="pin-dot" style="background:' + p.color + '"></div>';
+      track.parentNode.insertBefore(pin, track.nextSibling);
+    });
+  }
+  var mainPins = [
+    {name: 'random', val: randomTest, color: 'var(--ink-muted)', below: false},
+    {name: 'popularity', val: popTest, color: 'var(--ink-muted)', below: true},
+    {name: 'baseline · target', val: baselineTest, color: 'var(--ink)', below: false},
+    {name: 'oracle ceiling', val: oracleTest, color: 'var(--good)', below: false}
+  ];
+  document.getElementById('range-headroom').style.left = pct(baselineTest) + '%';
+  document.getElementById('range-headroom').style.width = (pct(oracleTest) - pct(baselineTest)) + '%';
+  renderPins('range-track', mainPins, pct);
+  ['range-ticks-main'].forEach(function(id){
+    var el2 = document.getElementById(id);
+    [0.45, 0.55, 0.65, 0.75, 0.85].forEach(function(t){
+      var s = document.createElement('span'); s.textContent = t.toFixed(2); el2.appendChild(s);
+    });
+  });
+
+  var zoomVals = [baselineTest].concat(autoTest !== null ? [autoTest] : []).concat(champTest !== null && !sameChampion ? [champTest] : []);
+  var zMin = Math.min.apply(null, zoomVals), zMax = Math.max.apply(null, zoomVals);
+  var zSpan = Math.max(zMax - zMin, 0.001);
+  var ZOOM_MIN = zMin - zSpan * 0.7, ZOOM_MAX = zMax + zSpan * 0.7;
+  function pctZoom(v){ return ((v - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN)) * 100; }
+  document.getElementById('range-zoom-mark').style.left = pct(ZOOM_MIN) + '%';
+  document.getElementById('range-zoom-mark').style.width = (pct(ZOOM_MAX) - pct(ZOOM_MIN)) + '%';
+
+  var zoomPins = [{name: 'baseline', val: baselineTest, color: 'var(--ink)', below: false}];
+  if (autoTest !== null) zoomPins.push({name: 'autonomous champion', val: autoTest, color: 'var(--accent)', below: true});
+  if (champTest !== null && !sameChampion) zoomPins.push({name: 'overall champion', val: champTest, color: 'var(--accent-human)', below: false});
+  renderPins('range-track-2', zoomPins, pctZoom);
+  var ticks2 = document.getElementById('range-ticks-2');
+  for (var zt = 0; zt <= 4; zt++){
+    var v2 = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * zt / 4;
+    var s2 = document.createElement('span'); s2.textContent = v2.toFixed(3); ticks2.appendChild(s2);
+  }
+
+  var capturedPct = (baselineTest - randomTest) / (oracleTest - randomTest) * 100;
+  var headroom = oracleTest - baselineTest;
+  var bestAvailable = Math.max(champTest || 0, autoTest || 0) || null;
+  var usedPct = bestAvailable ? (bestAvailable - baselineTest) / headroom * 100 : 0;
+  document.getElementById('range-caption').innerHTML =
+    '<div class="rc-item">Baseline already captured <b>' + capturedPct.toFixed(1) + '%</b> of the usable range before this run started.</div>' +
+    '<div class="rc-item"><b>' + headroom.toFixed(4) + '</b> of headroom remains above baseline. This run used <b>' + usedPct.toFixed(1) + '%</b> of it.</div>' +
+    '<div class="rc-item">' + summary.attempts + ' of ' + summary.iteration_cap + ' iterations used. ' + (summary.converged ? 'Stopped by convergence (ε=' + summary.eps + ', N=' + summary.patience + ').' : 'Stopped by a hard cap, not convergence.') + '</div>';
+
+  /* ================= iteration log ================= */
+  function highlightCode(src){
+    var escSrc = esc(src);
+    var lines = escSrc.split('\n');
+    var out = [], inDoc = false;
+    var kw = /\b(def|return|import|from|as|if|else|elif|for|while|in|not|and|or|class|try|except|break|continue|is|None|True|False|raise|with|lambda)\b/g;
+    lines.forEach(function(line){
+      var trimmed = line.trim();
+      var docMatches = (trimmed.match(/"""/g) || []).length;
+      if (inDoc){
+        out.push('<span class="tok-com">' + line + '</span>');
+        if (docMatches % 2 === 1) inDoc = false;
+        return;
+      }
+      if (trimmed.indexOf('"""') === 0){
+        out.push('<span class="tok-com">' + line + '</span>');
+        if (docMatches % 2 === 1) inDoc = true;
+        return;
+      }
+      if (trimmed.indexOf('#') === 0){
+        out.push('<span class="tok-com">' + line + '</span>');
+        return;
+      }
+      out.push(line.replace(kw, '<span class="tok-kw">$1</span>'));
+    });
+    return out.join('\n');
+  }
+
+  var list = document.getElementById('log-list');
+  if (log.length === 0){
+    list.innerHTML = '<div class="empty-note">No attempts logged yet. Run <span class="mono">python3 agent.py</span>, then regenerate this page with <span class="mono">python3 dashboard.py</span>.</div>';
+  }
+  log.forEach(function(r, i){
+    var card = document.createElement('div');
+    card.className = 'card';
+
+    var decisionBadge = r.status !== 'ok'
+      ? '<span class="badge decision-error">ERROR</span>'
+      : '<span class="badge ' + (/KEPT/.test(r.decision) ? 'decision-kept' : 'decision-discard') + '">' + esc(r.decision.replace(' (new champion)', ' · new champion')) + '</span>';
+    var autoBadge = r.auto_decision ? '<span class="badge decision-auto">' + esc(r.auto_decision.replace(' (new autonomous champion)', ' · new autonomous champion')) + '</span>' : '';
+
+    function deltaSpan(v){
+      var d = v - baselineTest;
+      var cls = d >= 0 ? 'delta-pos' : 'delta-neg';
+      return '<span class="cm-val tab ' + cls + '">' + (d >= 0 ? '+' : '') + d.toFixed(4) + '</span>';
+    }
+
+    var metricsHtml = r.status === 'ok'
+      ? '<div class="card-metrics">' +
+          '<span class="cm-head"></span><span class="cm-head">GAUC</span><span class="cm-head">nDCG@5</span><span class="cm-head">primary</span>' +
+          '<span class="cm-rowlabel">valid</span><span class="cm-val tab">' + fmt4(r.valid.GAUC) + '</span><span class="cm-val tab">' + fmt4(r.valid['nDCG@5']) + '</span><span class="cm-val tab">' + fmt4(r.valid.primary) + '</span>' +
+          '<span class="cm-rowlabel">test</span><span class="cm-val tab">' + fmt4(r.test.GAUC) + '</span><span class="cm-val tab">' + fmt4(r.test['nDCG@5']) + '</span><span class="cm-val tab">' + fmt4(r.test.primary) + ' ' + deltaSpan(r.test.primary) + '</span>' +
+        '</div>'
+      : '';
+
+    var toggleHtml = r.status === 'ok'
+      ? '<button class="code-toggle" data-target="code">view code</button>'
+      : '<button class="code-toggle" data-target="error">view error</button>' + (r.code ? '<button class="code-toggle" data-target="code" style="margin-left:8px">view code</button>' : '');
+
+    card.innerHTML =
+      '<div class="card-top">' +
+        '<div class="card-num">' + String(i + 1).padStart(2, '0') + '</div>' +
+        '<div class="card-headline">' +
+          '<div class="card-title-row">' +
+            '<span class="card-name">' + esc(r.experiment) + '</span>' +
+            '<span class="badge ' + authorClass(r.author) + '">' + esc(r.author) + '</span>' +
+            decisionBadge + autoBadge +
+          '</div>' +
+          '<p class="card-hyp">' + esc(r.description || '(no description)') + '</p>' +
+          metricsHtml +
+          '<div class="card-foot">' +
+            '<span class="card-time">priority ' + r.priority + (r.status === 'ok' ? ' · ' + r.seconds + 's' : '') + '</span>' +
+            toggleHtml +
+          '</div>' +
+          (r.code ? '<div class="code-block" data-block="code"><pre><code>' + highlightCode(r.code) + '</code></pre></div>' : '') +
+          (r.error ? '<div class="error-block" data-block="error">' + esc(r.error) + '</div>' : '') +
+        '</div>' +
+      '</div>';
+
+    card.querySelectorAll('.code-toggle').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var target = btn.getAttribute('data-target');
+        var block = card.querySelector('[data-block="' + target + '"]');
+        var open = block.classList.toggle('open');
+        btn.textContent = (open ? 'hide ' : 'view ') + target;
+      });
+    });
+
+    list.appendChild(card);
+  });
+
+  /* ================= footer ================= */
+  var tokensFmt2 = fmtTokens(summary.total_llm_tokens);
+  document.getElementById('footer-grid').innerHTML =
+    '<div><div class="fg-label">Wall&#8209;clock (this run)</div><div class="fg-value tab">' + summary.total_wall_clock_seconds.toFixed(2) + 's</div><div class="stat-sub">cap: ' + summary.wall_clock_cap_seconds.toLocaleString('en-US') + 's (' + fmtSeconds(summary.wall_clock_cap_seconds) + ')</div></div>' +
+    '<div><div class="fg-label">GPU&#8209;hours</div><div class="fg-value tab">' + summary.gpu_hours + '</div><div class="stat-sub">numpy, CPU&#8209;only run unless noted</div></div>' +
+    '<div><div class="fg-label">LLM tokens (input + output)</div>' +
+      (tokensFmt2
+        ? '<div class="fg-value tab">' + tokensFmt2 + '</div><div class="stat-sub">recorded</div>'
+        : '<div class="fg-value pending">not yet recorded</div><div class="stat-sub warn">fill in from Claude Code usage panel before submission</div>') +
+    '</div>';
+
+  document.getElementById('page-footer').textContent =
+    'generated ' + (generatedAt || '') + ' from agent_log.jsonl & agent_summary.json · re-run agent.py then python3 dashboard.py to refresh';
+})();
+</script>
