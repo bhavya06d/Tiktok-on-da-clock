@@ -128,7 +128,7 @@ def build_user_pos_neg(users, y):
     neg_by_user = {u: np.array(neg_by_user[u]) for u in eligible}
     return flat_pos, neg_by_user
 
-def run_fm_bpr(splits, k=16, lr=0.001, epochs=40, bs=8192, patience=4, seed=0, verbose=True):
+def run_fm_bpr(splits, k=16, lr=0.0005, epochs=40, bs=8192, patience=4, seed=0, verbose=True):
     enc, dim = encode(splits)
     Xtr, ytr, utr = enc['train']; Xva, yva, uva = enc['valid']; Xte, yte, ute = enc['test']
     flat_pos, neg_by_user = build_user_pos_neg(utr, ytr)
@@ -165,16 +165,20 @@ if __name__ == '__main__':
                     help='KuaiRand-Pure 解压后的 data 目录')
     ap.add_argument('--model', default='fm', choices=['pop', 'fm', 'fm_bpr', 'random'])
     ap.add_argument('--k', type=int, default=16)
-    ap.add_argument('--lr', type=float, default=0.001)
+    ap.add_argument('--lr', type=float, default=None,
+                    help='learning rate; defaults to 0.001 for fm, 0.0005 for fm_bpr (tuned separately)')
     ap.add_argument('--epochs', type=int, default=40)
     ap.add_argument('--seed', type=int, default=0)
     a = ap.parse_args()
     print(f"loading {a.data_dir} ...")
     splits = load(a.data_dir)
     print({k_: len(v) for k_, v in splits.items()}, f"fields={FIELDS}")
+    lr_defaults = {'fm': 0.001, 'fm_bpr': 0.0005}
     res = {'pop': run_pop, 'random': lambda s: run_random(s, a.seed),
-           'fm': lambda s: run_fm(s, k=a.k, lr=a.lr, epochs=a.epochs, seed=a.seed),
-           'fm_bpr': lambda s: run_fm_bpr(s, k=a.k, lr=a.lr, epochs=a.epochs, seed=a.seed),
+           'fm': lambda s: run_fm(s, k=a.k, lr=a.lr if a.lr is not None else lr_defaults['fm'],
+                                   epochs=a.epochs, seed=a.seed),
+           'fm_bpr': lambda s: run_fm_bpr(s, k=a.k, lr=a.lr if a.lr is not None else lr_defaults['fm_bpr'],
+                                          epochs=a.epochs, seed=a.seed),
            }[a.model](splits)
     print(f"\n=== {a.model} (seed={a.seed}) ===")
     for sp in ('valid', 'test'):
