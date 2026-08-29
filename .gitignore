@@ -5,3 +5,5 @@ KuaiRand-Pure/
 KuaiRand-Pure.tar.gz
 submission.csv
 .DS_Store
+agent_log.jsonl
+agent_summary.json
