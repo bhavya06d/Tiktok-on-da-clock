@@ -36,6 +36,17 @@ def _jsonable(obj):
     return obj
 
 
+def _read_source(name):
+    """Full source of experiments/<name>.py, captured as the 'code diff'
+    for the run log (each experiment is a new file, so its whole content
+    *is* the diff against the baseline)."""
+    try:
+        with open(os.path.join(EXPERIMENTS_DIR, f'{name}.py')) as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
 def discover_experiments():
     """Import every experiments/*.py that isn't private (_-prefixed) and
     exposes a run() function. Returns a list of (priority, name, module)
@@ -95,6 +106,7 @@ def main():
         entry = {
             'timestamp': time.time(), 'experiment': name, 'priority': priority,
             'description': desc, 'seconds': round(dt, 2), 'status': status, 'error': error,
+            'code': _read_source(name),
         }
 
         if status == 'error':
