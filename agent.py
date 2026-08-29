@@ -81,6 +81,11 @@ def main():
                      help='consecutive non-improving attempts before declaring convergence')
     ap.add_argument('--log', default='agent_log.jsonl')
     ap.add_argument('--summary', default='agent_summary.json')
+    ap.add_argument('--reveal-test-live', action='store_true',
+                     help="print test-split scores during iteration, not just at the end. "
+                          "Off by default: the challenge rules say development should use "
+                          "train+validation only - decisions here are already valid-only, "
+                          "this flag controls what a human sees on the console while iterating.")
     a = ap.parse_args()
 
     print(f"loading {a.data_dir} ...")
@@ -159,7 +164,8 @@ def main():
                 auto_decision = 'DISCARDED (autonomous track)'
 
         imp_str = 'n/a (first)' if first else f"{improvement:+.4f}"
-        print(f"    valid primary={vp:.4f}  test primary={res['test']['primary']:.4f}  "
+        test_str = f"  test primary={res['test']['primary']:.4f}" if a.reveal_test_live else ""
+        print(f"    valid primary={vp:.4f}{test_str}  "
               f"improvement={imp_str}  -> {decision}  ({dt:.1f}s)")
 
         entry.update({
@@ -196,6 +202,10 @@ def main():
     print(f"\nauthor breakdown: {author_counts}  "
           f"({manual_interventions} manual intervention(s) out of {len(history)} attempts)")
 
+    total_wall_clock_seconds = round(sum(e['seconds'] for e in history), 2)
+    print(f"total wall-clock (sum of experiment run times): {total_wall_clock_seconds:.1f}s "
+          f"of the 6h (21600s) cap; {len(history)} of the 50-iteration cap")
+
     summary = {
         'champion': champion_name,
         'champion_valid_primary': champion_valid_primary,
@@ -208,6 +218,16 @@ def main():
         'converged': converged,
         'attempts': len(history),
         'eps': a.eps, 'patience': a.patience,
+        # Resource usage required for the Feasibility & Practicality submission section:
+        'total_wall_clock_seconds': total_wall_clock_seconds,
+        'wall_clock_cap_seconds': 21600,       # 6h
+        'iteration_cap': 50,
+        'gpu_hours': 0,                        # CPU-only (numpy), no GPU used
+        'total_llm_tokens': None,              # NOT auto-tracked - this script has no
+        # visibility into its own LLM usage. Whoever compiles the final report needs to
+        # pull input+output token counts for the session(s) that proposed/wrote the
+        # AUTHOR == 'agent' experiments (Claude Code usage panel / API dashboard) and
+        # fill this in by hand before submission.
         'history': history,
     }
     with open(a.summary, 'w') as fh:
