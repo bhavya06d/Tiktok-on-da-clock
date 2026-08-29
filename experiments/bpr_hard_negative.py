@@ -21,6 +21,7 @@ from evaluate import evaluate
 
 PRIORITY = 2
 DESCRIPTION = 'BPR with hard-negative mining (K=5 candidates, pick highest-scoring) instead of uniform random negatives.'
+AUTHOR = 'agent'  # proposed and written live by Claude, not hand-coded by a teammate
 
 
 def run_fm_bpr_hard(splits, k=16, lr=0.0005, epochs=40, bs=8192, patience=4,

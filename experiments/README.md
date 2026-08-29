@@ -14,10 +14,36 @@ file, so there is nothing to merge-conflict over.
    extra heads, whatever you need) — keep your training code in your own
    file rather than editing `baseline.py` directly, that's what keeps
    merges clean.
-3. Optional module attributes: `PRIORITY` (int, default 100, lower runs
-   earlier) and `DESCRIPTION` (str, shown in the agent's log).
-4. Never modify `evaluate.py` — it's the fixed scoring contract.
-5. Files starting with `_` (like `_template.py`) are skipped by discovery.
+3. Set `AUTHOR = 'human'` or `AUTHOR = 'agent'` — see "Why AUTHOR matters" below.
+   This is not optional, be honest about it.
+4. Optional module attributes: `PRIORITY` (int, default 100, lower runs
+   earlier) and `DESCRIPTION` (str, shown in the agent's log — treat it as
+   the hypothesis being tested, judges read this).
+5. Never modify `evaluate.py` — it's the fixed scoring contract.
+6. Files starting with `_` (like `_template.py`) are skipped by discovery.
+
+## Why AUTHOR matters (read this)
+
+The hackathon's actual requirement is that an AI proposes and writes the
+iteration code, not a human — see the official problem statement:
+*"Writing the code for each stage is part of the agent's job, not something
+provided in advance."* Autonomy (how little human intervention a run needed)
+is directly graded.
+
+Hand-implementing an idea yourself (like Person 1's `bpr_loss.py` — real,
+valuable, tested work) is still worth doing: it's background validation and
+a safety-net score. But it is a **manual intervention**, not the thing being
+scored as "the agent." `agent.py` tracks two separate champions so this
+never gets blurred:
+
+- **Overall champion** — best score from any author, i.e. what's actually
+  achievable right now.
+- **Autonomous champion** — best score among `AUTHOR = 'agent'` entries
+  only, i.e. what the agent found *on its own*. This is the number that
+  answers the hackathon's real question, and it's the one that should be
+  the centerpiece of the submission log.
+
+See ../PLAN.md for the fuller writeup of this distinction.
 
 ## Assigned ideas (see ../PLAN.md)
 

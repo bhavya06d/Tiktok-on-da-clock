@@ -3,6 +3,43 @@
 TikTok TechJam 2026, Track 2. Starter kit setup is done — FM baseline confirmed
 working locally (test primary 0.5953, matches README's 0.5946).
 
+## READ THIS FIRST — correction after reading the official problem statement
+
+Everything below this section was written before we had the actual official
+problem doc (bit.ly/TikTokTechJam2026Info). One thing in the original plan
+was wrong and matters a lot:
+
+**The agent itself must propose and write the iteration code. A human
+hand-writing an idea (however good) does not count as "the agent" — it
+counts as manual intervention, which is directly graded (Autonomy, under
+Impact & Relevance).** Direct quote from the official doc: *"Writing the
+code for each stage is part of the agent's job, not something provided in
+advance."*
+
+This does **not** mean Persons 1-3's hand-implemented ideas (BPR loss,
+history, multitask) are wasted — they're still real, valuable, tested code.
+It means: keep building them, but don't present them as "the agent's"
+output. `experiments/README.md` now has an `AUTHOR = 'human' | 'agent'`
+convention and `agent.py` tracks two separate champions (overall best vs.
+autonomous-only best) so this never gets blurred in the log. Read
+`experiments/README.md`'s "Why AUTHOR matters" section before adding a new
+experiment file.
+
+Other confirmed facts from the official doc worth knowing:
+- **Metric/baseline/convergence rule are all exactly what we already had** —
+  GAUC/nDCG@5, primary=mean, baseline 0.5946, eps=0.002/N=3. No changes there.
+- **Hard caps:** 50 iterations OR 6h wall-clock per run, whichever first.
+- **No external training data** — KuaiRand only, no augmenting with other
+  datasets. Open-source libraries, papers, and pretrained weights are fine.
+- **Deliverables we hadn't planned for:** each log entry needs the actual
+  code (not just hypothesis + score) — `agent.py` now captures this
+  automatically. Final submission also needs total LLM token usage, total
+  wall-clock, and iteration count reported (Feasibility & Practicality
+  scoring) — nobody owns instrumenting this yet.
+- **No paid API needed.** The doc explicitly allows using Claude Code (or
+  Trae, ByteDance's tool, free 7-day trial) as the coding agent — we're
+  already doing this live in-session, no extra signup or spend.
+
 ## The Angle That Stands Out
 
 Most teams will hand-tune a model and report "we got a better score." That's not

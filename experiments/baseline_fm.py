@@ -7,6 +7,7 @@ from baseline import run_fm
 
 PRIORITY = 0
 DESCRIPTION = 'Official FM baseline (k=16, pointwise logloss) — unmodified, starting champion.'
+AUTHOR = 'baseline'  # the fixed reference point, not a proposed idea from anyone
 
 
 def run(splits):

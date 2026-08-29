@@ -9,7 +9,12 @@ itself is never run.
 # from data import encode
 
 PRIORITY = 100                     # lower = agent.py runs it earlier (baseline=0)
-DESCRIPTION = 'TODO: one-line description of the idea being tested'
+DESCRIPTION = 'TODO: one-line description of the idea being tested (the hypothesis)'
+AUTHOR = 'human'                   # 'human' if you wrote this by hand, 'agent' if
+                                    # an AI proposed and wrote it with minimal/no human
+                                    # steering. Be honest - this is what the hackathon
+                                    # actually scores (autonomy), not the score itself.
+                                    # See ../PLAN.md for why this distinction matters.
 
 
 def run(splits):

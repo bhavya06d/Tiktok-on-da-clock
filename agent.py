@@ -23,6 +23,13 @@ from data import load
 
 EXPERIMENTS_DIR = 'experiments'
 
+# Experiments committed before the AUTHOR convention existed. We do not edit
+# teammates' files to retrofit it (merge hygiene) - authorship for those is
+# recorded here instead. New experiments should just set AUTHOR themselves.
+LEGACY_AUTHOR = {
+    'bpr_loss': 'human',  # Person 1, hand-written and hand-tuned before this convention existed
+}
+
 
 def _jsonable(obj):
     """Recursively convert numpy scalars (float32 etc., which json can't
@@ -59,7 +66,8 @@ def discover_experiments():
         mod = importlib.import_module(f'{EXPERIMENTS_DIR}.{name}')
         if not hasattr(mod, 'run'):
             continue
-        found.append((getattr(mod, 'PRIORITY', 100), name, mod))
+        author = getattr(mod, 'AUTHOR', None) or LEGACY_AUTHOR.get(name, 'human')
+        found.append((getattr(mod, 'PRIORITY', 100), name, mod, author))
     found.sort(key=lambda t: (t[0], t[1]))
     return found
 
@@ -80,18 +88,27 @@ def main():
     print({k: len(v) for k, v in splits.items()})
 
     experiments = discover_experiments()
-    print(f"\ndiscovered {len(experiments)} experiment(s): {[n for _, n, _ in experiments]}\n")
+    print(f"\ndiscovered {len(experiments)} experiment(s): {[n for _, n, _, _ in experiments]}\n")
 
     open(a.log, 'w').close()  # fresh log each run
 
+    # Two champions tracked in parallel: `champion` is the best result seen
+    # regardless of who wrote the code (what score is actually achievable);
+    # `auto_champion` only considers AUTHOR == 'agent' entries - this is the
+    # one that answers the hackathon's actual question (what did the agent,
+    # autonomously, manage to find on its own). Convergence (the eps/N stop
+    # rule) is tracked against the overall stream.
     champion_name, champion_valid_primary, champion_test = None, None, None
+    auto_champion_name, auto_champion_valid_primary, auto_champion_test = None, None, None
+    author_counts = {}
     no_improve = 0
     history = []
     converged = False
 
-    for priority, name, mod in experiments:
+    for priority, name, mod, author in experiments:
+        author_counts[author] = author_counts.get(author, 0) + 1
         desc = getattr(mod, 'DESCRIPTION', '')
-        print(f"--- [{priority}] {name}" + (f" — {desc}" if desc else ''))
+        print(f"--- [{priority}] {name} (author={author})" + (f" — {desc}" if desc else ''))
         t0 = time.time()
         try:
             res = mod.run(splits)
@@ -105,8 +122,8 @@ def main():
 
         entry = {
             'timestamp': time.time(), 'experiment': name, 'priority': priority,
-            'description': desc, 'seconds': round(dt, 2), 'status': status, 'error': error,
-            'code': _read_source(name),
+            'author': author, 'description': desc, 'seconds': round(dt, 2),
+            'status': status, 'error': error, 'code': _read_source(name),
         }
 
         if status == 'error':
@@ -128,6 +145,19 @@ def main():
             decision = 'DISCARDED'
             no_improve += 1
 
+        # Separate autonomous-only champion, evaluated the same way but only
+        # among AUTHOR == 'agent' entries - does not affect the convergence
+        # counter above, which tracks the overall stream.
+        auto_decision = None
+        if author == 'agent':
+            auto_first = auto_champion_valid_primary is None
+            auto_improvement = float('inf') if auto_first else vp - auto_champion_valid_primary
+            if auto_first or auto_improvement > a.eps:
+                auto_decision = 'KEPT (new autonomous champion)'
+                auto_champion_name, auto_champion_valid_primary, auto_champion_test = name, vp, res['test']
+            else:
+                auto_decision = 'DISCARDED (autonomous track)'
+
         imp_str = 'n/a (first)' if first else f"{improvement:+.4f}"
         print(f"    valid primary={vp:.4f}  test primary={res['test']['primary']:.4f}  "
               f"improvement={imp_str}  -> {decision}  ({dt:.1f}s)")
@@ -136,6 +166,7 @@ def main():
             'valid': res['valid'], 'test': res['test'],
             'improvement_over_champion': None if first else round(improvement, 4),
             'decision': decision, 'champion_after': champion_name,
+            'auto_decision': auto_decision, 'auto_champion_after': auto_champion_name,
         })
         history.append(entry)
         with open(a.log, 'a') as fh:
@@ -146,15 +177,34 @@ def main():
             converged = True
             break
 
-    print(f"\n=== FINAL CHAMPION: {champion_name} | valid primary={champion_valid_primary:.4f} ===")
+    print(f"\n=== OVERALL BEST: {champion_name} | valid primary={champion_valid_primary:.4f} "
+          f"(any author - best score actually achievable) ===")
     if champion_test:
         print(f"    test  GAUC {champion_test['GAUC']:.4f} | nDCG@5 {champion_test['nDCG@5']:.4f} "
               f"| primary {champion_test['primary']:.4f}")
+
+    print(f"\n=== AUTONOMOUS CHAMPION: {auto_champion_name} "
+          f"(what the agent found on its own, no human-authored ideas) ===")
+    if auto_champion_test:
+        print(f"    valid primary={auto_champion_valid_primary:.4f}")
+        print(f"    test  GAUC {auto_champion_test['GAUC']:.4f} | nDCG@5 {auto_champion_test['nDCG@5']:.4f} "
+              f"| primary {auto_champion_test['primary']:.4f}")
+    else:
+        print("    (no agent-authored experiment has run yet)")
+
+    manual_interventions = author_counts.get('human', 0)
+    print(f"\nauthor breakdown: {author_counts}  "
+          f"({manual_interventions} manual intervention(s) out of {len(history)} attempts)")
 
     summary = {
         'champion': champion_name,
         'champion_valid_primary': champion_valid_primary,
         'champion_test': champion_test,
+        'autonomous_champion': auto_champion_name,
+        'autonomous_champion_valid_primary': auto_champion_valid_primary,
+        'autonomous_champion_test': auto_champion_test,
+        'author_counts': author_counts,
+        'manual_interventions': manual_interventions,
         'converged': converged,
         'attempts': len(history),
         'eps': a.eps, 'patience': a.patience,

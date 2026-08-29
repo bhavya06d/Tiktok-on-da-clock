@@ -20,6 +20,7 @@ from evaluate import evaluate
 
 PRIORITY = 3
 DESCRIPTION = 'BPR: 5 warm-up epochs with random negatives, then switch to hard-negative mining (K=5).'
+AUTHOR = 'agent'  # proposed and written live by Claude, not hand-coded by a teammate
 
 
 def run_fm_bpr_hard_warmstart(splits, k=16, lr=0.0005, epochs=40, bs=8192, patience=4,
