@@ -116,6 +116,230 @@ def run_fm(split, data_dir, params):
     return res, raw_ev, scores
 
 
+def run_bpr_numpy(split, data_dir, params):
+    """Validated numpy-only pairwise BPR (Person 1's original idea, from
+    experiments/bpr_loss.py in the parallel agent.py harness): same 5-field
+    FM architecture as run_fm above, trained on (positive, uniform-random
+    negative) pairs instead of pointwise logloss. No torch, no warm-start,
+    no list sampling - deliberately the simplest version of the idea.
+
+    Registered as a distinct variant (not replacing run_bpr above) because
+    it's a real, measured result, not a guess: test primary 0.5985 vs the
+    existing torch run_bpr's 0.5653 with default params, and vs the FM
+    baseline's 0.5946. Kept side by side so the difference is visible
+    rather than silently overwritten.
+    """
+    from baseline import FM, build_user_pos_neg
+    from data import encode, load
+    splits = load(data_dir)
+    enc, dim = encode(splits)
+    Xtr, ytr, utr = enc["train"]
+    ev_name = "valid" if split != "test" else "test"
+    Xva, yva, uva = enc["valid"]
+    Xev, yev, uev = enc[ev_name]
+    flat_pos, neg_by_user = build_user_pos_neg(utr, ytr)
+    seed = int(params.get("seed", 0))
+    m = FM(dim, k=int(params.get("k", 16)), lr=float(params.get("lr", 0.0005)), seed=seed)
+    rng = np.random.default_rng(seed)
+    bs = int(params.get("bs", 8192))
+    best, state, bad = -1.0, None, 0
+    for _ in range(int(params.get("epochs", 40))):
+        order = rng.permutation(len(flat_pos))
+        for start in range(0, len(order), bs):
+            batch = [flat_pos[j] for j in order[start:start + bs]]
+            pos_rows = np.array([i for _, i in batch])
+            neg_rows = np.array([neg_by_user[u][rng.integers(len(neg_by_user[u]))] for u, _ in batch])
+            m.step_bpr(Xtr[pos_rows], Xtr[neg_rows])
+        p = evaluate(uva, yva, m.predict(Xva))["primary"]
+        if p > best + 1e-5:
+            best, bad, state = p, 0, (m.V.copy(), m.W.copy(), np.float32(m.b))
+        else:
+            bad += 1
+            if bad >= int(params.get("patience", 4)):
+                break
+    m.V, m.W, m.b = state
+    scores = m.predict(Xev)
+    res = evaluate(uev, yev, scores)
+    ev_df = pd.DataFrame({"user_id": uev, "video_id": [x[2] for x in splits[ev_name]]})
+    return res, ev_df, scores
+
+
+def run_listwise_numpy(split, data_dir, params):
+    """Validated numpy-only listwise softmax (from experiments/listwise_softmax.py
+    in the parallel agent.py harness): for each positive, sample M random
+    negatives from the same user and train with softmax cross-entropy over
+    [positive, neg_1..neg_M] instead of BPR's one-negative-at-a-time pairwise
+    comparison. M=1 reduces exactly to BPR's sigmoid(z_pos - z_neg) - checked
+    by hand before trusting this on real data.
+
+    Measured: val primary 0.6039, test primary 0.5973 with M=4 (this file's
+    default) - the best score found with zero human-written hypothesis
+    (autonomous track champion in the agent.py harness). M=8 and a small
+    learning-rate sweep were also tried and found no better - not re-run here.
+    """
+    from baseline import FM, build_user_pos_neg
+    from data import encode, load
+    splits = load(data_dir)
+    enc, dim = encode(splits)
+    Xtr, ytr, utr = enc["train"]
+    ev_name = "valid" if split != "test" else "test"
+    Xva, yva, uva = enc["valid"]
+    Xev, yev, uev = enc[ev_name]
+    flat_pos, neg_by_user = build_user_pos_neg(utr, ytr)
+    seed = int(params.get("seed", 0))
+    m_neg = int(params.get("m_neg", 4))
+    m = FM(dim, k=int(params.get("k", 16)), lr=float(params.get("lr", 0.0005)), seed=seed)
+    rng = np.random.default_rng(seed)
+    bs = int(params.get("bs", 8192))
+    best, state, bad = -1.0, None, 0
+    for _ in range(int(params.get("epochs", 40))):
+        order = rng.permutation(len(flat_pos))
+        for start in range(0, len(order), bs):
+            batch = [flat_pos[j] for j in order[start:start + bs]]
+            B = len(batch)
+            rows_idx = np.empty((B, 1 + m_neg), dtype=np.int64)
+            rows_idx[:, 0] = [i for _, i in batch]
+            for r, (u, _) in enumerate(batch):
+                pool = neg_by_user[u]
+                rows_idx[r, 1:] = pool[rng.integers(len(pool), size=m_neg)]
+            X = Xtr[rows_idx.reshape(-1)]
+            z, E, S = m.logits(X)
+            zg = z.reshape(B, 1 + m_neg)
+            zg = zg - zg.max(1, keepdims=True)
+            ez = np.exp(zg)
+            p = ez / ez.sum(1, keepdims=True)
+            coef = p.copy()
+            coef[:, 0] -= 1.0
+            coef = (coef / B).astype(np.float32)
+            m._apply_grad(X, E, S, coef.reshape(-1))
+        va = evaluate(uva, yva, m.predict(Xva))["primary"]
+        if va > best + 1e-5:
+            best, bad, state = va, 0, (m.V.copy(), m.W.copy(), np.float32(m.b))
+        else:
+            bad += 1
+            if bad >= int(params.get("patience", 4)):
+                break
+    m.V, m.W, m.b = state
+    scores = m.predict(Xev)
+    res = evaluate(uev, yev, scores)
+    ev_df = pd.DataFrame({"user_id": uev, "video_id": [x[2] for x in splits[ev_name]]})
+    return res, ev_df, scores
+
+
+def run_hour_of_day(split, data_dir, params):
+    """First feature-side idea in either harness - everything before this
+    only changed the loss function (bpr_numpy, listwise_numpy). Adds
+    hour-of-day (from the raw hourmin column, HHMM) as a 6th categorical
+    field alongside data.encode's 5 - day-parting is a known effect in
+    recommendation (taste in content shifts morning/afternoon/evening/late
+    night) and the README's own headroom list names time features as an
+    untried lever. Loss (listwise softmax, M=4) held identical to
+    listwise_numpy so hour-of-day is the only variable.
+
+    Measured (see experiments/hour_of_day.py in the parallel agent.py
+    harness): val primary 0.6052 / test 0.5986 - the best score found by
+    either harness so far, beating even the hand-tuned bpr (0.6037 val).
+    """
+    import collections
+    import csv
+    from baseline import FM
+
+    SPLITS = {"train": (20220408, 20220421), "valid": (20220422, 20220428), "test": (20220429, 20220508)}
+    vid2author = {}
+    with open(os.path.join(data_dir, "video_features_basic_pure.csv")) as fh:
+        for r in csv.DictReader(fh):
+            vid2author[r["video_id"]] = r["author_id"]
+    rows = []
+    for f in ("log_standard_4_08_to_4_21_pure.csv", "log_standard_4_22_to_5_08_pure.csv"):
+        with open(os.path.join(data_dir, f)) as fh:
+            for r in csv.DictReader(fh):
+                hour = int(r["hourmin"]) // 100
+                rows.append((int(r["date"]), r["user_id"], r["video_id"],
+                            vid2author.get(r["video_id"], "UNK"), r["tab"],
+                            float(r["duration_ms"]), 1 if r["long_view"] != "0" else 0, hour))
+    splits = {name: [x for x in rows if lo <= x[0] <= hi] for name, (lo, hi) in SPLITS.items()}
+
+    tr = splits["train"]
+    edges = np.quantile(np.asarray([x[5] for x in tr]), np.linspace(0, 1, 10)[1:-1])
+
+    def raw(x):
+        return [x[1], x[2], x[3], x[4], str(int(np.searchsorted(edges, x[5]))), str(x[7])]
+
+    vocabs = [dict() for _ in range(6)]
+    for x in tr:
+        for i, v in enumerate(raw(x)):
+            if v not in vocabs[i]:
+                vocabs[i][v] = len(vocabs[i])
+    unk = [len(v) for v in vocabs]
+    field_dims = [len(v) + 1 for v in vocabs]
+    offsets = np.cumsum([0] + field_dims[:-1]).astype(np.int32)
+
+    ev_name = "valid" if split != "test" else "test"
+    enc = {}
+    for name in ("train", "valid", ev_name):
+        rws = splits[name]
+        X = np.empty((len(rws), 6), dtype=np.int32)
+        y = np.empty(len(rws), dtype=np.float32)
+        users = []
+        for n, x in enumerate(rws):
+            for i, v in enumerate(raw(x)):
+                X[n, i] = vocabs[i].get(v, unk[i]) + offsets[i]
+            y[n] = x[6]
+            users.append(x[1])
+        enc[name] = (X, y, users)
+    dim = int(sum(field_dims))
+
+    Xtr, ytr, utr = enc["train"]
+    Xva, yva, uva = enc["valid"]
+    Xev, yev, uev = enc[ev_name]
+
+    pos_by_user, neg_by_user = collections.defaultdict(list), collections.defaultdict(list)
+    for i, (u, yi) in enumerate(zip(utr, ytr)):
+        (pos_by_user if yi > 0 else neg_by_user)[u].append(i)
+    eligible = [u for u in pos_by_user if u in neg_by_user]
+    flat_pos = [(u, i) for u in eligible for i in pos_by_user[u]]
+    neg_by_user = {u: np.array(neg_by_user[u]) for u in eligible}
+
+    seed = int(params.get("seed", 0))
+    m_neg = int(params.get("m_neg", 4))
+    m = FM(dim, k=int(params.get("k", 16)), lr=float(params.get("lr", 0.0005)), seed=seed)
+    rng = np.random.default_rng(seed)
+    bs = int(params.get("bs", 8192))
+    best, state, bad = -1.0, None, 0
+    for _ in range(int(params.get("epochs", 40))):
+        order = rng.permutation(len(flat_pos))
+        for start in range(0, len(order), bs):
+            batch = [flat_pos[j] for j in order[start:start + bs]]
+            B = len(batch)
+            rows_idx = np.empty((B, 1 + m_neg), dtype=np.int64)
+            rows_idx[:, 0] = [i for _, i in batch]
+            for r, (u, _) in enumerate(batch):
+                pool = neg_by_user[u]
+                rows_idx[r, 1:] = pool[rng.integers(len(pool), size=m_neg)]
+            X = Xtr[rows_idx.reshape(-1)]
+            z, E, S = m.logits(X)
+            zg = z.reshape(B, 1 + m_neg)
+            zg = zg - zg.max(1, keepdims=True)
+            ez = np.exp(zg)
+            p = ez / ez.sum(1, keepdims=True)
+            coef = p.copy()
+            coef[:, 0] -= 1.0
+            coef = (coef / B).astype(np.float32)
+            m._apply_grad(X, E, S, coef.reshape(-1))
+        va = evaluate(uva, yva, m.predict(Xva))["primary"]
+        if va > best + 1e-5:
+            best, bad, state = va, 0, (m.V.copy(), m.W.copy(), np.float32(m.b))
+        else:
+            bad += 1
+            if bad >= int(params.get("patience", 4)):
+                break
+    m.V, m.W, m.b = state
+    scores = m.predict(Xev)
+    res = evaluate(uev, yev, scores)
+    ev_df = pd.DataFrame({"user_id": uev, "video_id": [x[2] for x in splits[ev_name]]})
+    return res, ev_df, scores
+
+
 def run_bpr(split, data_dir, params, workspace):
     """Person-1 idea: replace the FM baseline's POINTWISE logloss with a
     LISTWISE ranking objective (per-user softmax / ListNet), with a BPR
@@ -306,6 +530,12 @@ def run_variant(variant: str, split: str, data_dir: str | None = None,
 
     if variant == "fm":
         res, ev, scores = run_fm(split, data_dir, params)
+    elif variant == "bpr_numpy":
+        res, ev, scores = run_bpr_numpy(split, data_dir, params)
+    elif variant == "listwise_numpy":
+        res, ev, scores = run_listwise_numpy(split, data_dir, params)
+    elif variant == "hour_of_day":
+        res, ev, scores = run_hour_of_day(split, data_dir, params)
     else:
         if variant == "bpr":
             res, ev, scores = run_bpr(split, data_dir, params, workspace)

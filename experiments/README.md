@@ -45,7 +45,7 @@ never gets blurred:
 
 See ../PLAN.md for the fuller writeup of this distinction.
 
-## Assigned ideas (see ../PLAN.md)
+## Ideas delivered so far (see ../PLAN.md)
 
 | File | Owner | Idea | Result |
 |---|---|---|---|
@@ -57,6 +57,7 @@ See ../PLAN.md for the fuller writeup of this distinction.
 | `hour_of_day.py` | agent | Hour-of-day as a 6th field on top of listwise softmax | valid 0.6052 — best raw score, but discarded (improvement +0.0014 < ε) |
 | `user_history.py` | Person 2 | DIN-style candidate-aware attention over each user's history | valid 0.6010 — discarded |
 | `multitask.py` | agent | Multi-task FM: shared embeddings, aux head on is_click | valid 0.6018 — discarded |
+| `seq_dur_drift.py` | agent | Short-term duration-preference drift as an extra FM field | valid 0.6017 — discarded, near-flat |
 
 Note on `hour_of_day.py`: it scores higher than every other attempt, but each
 step since `bpr_loss` improved by less than ε=0.002 over the *immediately
@@ -65,6 +66,14 @@ though the cumulative gain from baseline is real. That's the eps/N rule
 applied correctly, not a bug — flagging it here since it's a genuinely
 interesting property of the convergence rule worth understanding rather than
 something to route around.
+
+A second, LLM-in-the-loop agent implementation also exists in `agent/` +
+`solutions/runner.py` (real Anthropic API calls, live token accounting,
+demonstrated crash recovery) - see `AGENT.md`. It's a different, arguably
+more literal take on "the agent writes its own code" than the file-discovery
+approach here, and hasn't been reconciled with this system yet - worth a
+team decision on whether to merge, keep both, or pick one before final
+submission, not something either half of the team should decide alone.
 
 ## How the agent uses this
 

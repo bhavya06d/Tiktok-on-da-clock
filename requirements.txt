@@ -1,0 +1,15 @@
+# The starter kit itself (baseline.py, evaluate.py, data.py, submit.py,
+# agent.py, experiments/) needs only numpy - see README.md.
+#
+# The agent/ + solutions/ system (run_agent.py) additionally needs:
+numpy
+pandas
+scikit-learn
+lightgbm
+torch
+anthropic          # only required for `run_agent.py --llm anthropic` (real LLM mode);
+                   # offline/mock modes work without it and without ANTHROPIC_API_KEY
+
+# macOS note: lightgbm needs the OpenMP runtime, which isn't installed by
+# pip. If you see `Library not loaded: @rpath/libomp.dylib`, run:
+#     brew install libomp

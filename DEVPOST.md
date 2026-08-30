@@ -36,15 +36,29 @@ the wrong mental model.
 
 ## What we found
 
-The organizers' hypothesis that a ranking loss would be the biggest win did not
-hold in our experiments (LambdaRank, listwise/BPR on the FM architecture, and
-DIN-style history features all landed **below** the well-tuned pointwise FM).
-The agent correctly discarded them. The one gain it kept was rank-ensembling
-(FM seed-ensemble + LambdaRank blend), a marginal but real improvement — and by
-the dataset's own ε = 0.002 rule the agent then declared convergence rather than
-chasing noise. That discipline — trying six real ideas, keeping only what beats
-the bar, stopping on the stated rule, zero human intervention — is the
-submission.
+The organizers' hypothesis that a ranking loss would be the biggest win **did
+hold** — a listwise softmax loss on the same FM architecture beat the
+pointwise baseline (val 0.6039 vs 0.6015). That result took two tries: a more
+elaborate torch implementation (warm-started, K=24 list sampling) scored only
+0.565 with default params, which could easily read as "the idea failed" — but
+the same idea implemented simply, in ~40 lines of plain numpy, was a real win.
+
+Every idea up to that point only changed the loss function — nothing had
+touched what the model actually sees. The run's best result, `hour_of_day`
+(val 0.6052, test 0.5986), is the first to: one new categorical field
+(hour-of-day, from the raw `hourmin` column — day-parting is a known effect
+in recommendation, and time features were the README's own untried headroom
+item). A same-day follow-up, day-of-week, added nothing further — with only
+14 days of train data, each weekday is seen twice, too sparse to learn from.
+Rank-ensembling with LambdaRank was tried too and slightly hurt, since
+LambdaRank alone was too far behind to add value via averaging.
+
+LambdaRank and DIN-style history/multitask features did genuinely
+underperform here, independent of implementation — not every well-cited
+method transfers to every dataset. That discipline — trying real ideas,
+keeping only what clears the bar, catching "idea vs. implementation" before
+writing off a hypothesis, knowing when a follow-up isn't paying off, stopping
+on the stated rule, zero human intervention — is the submission.
 
 ## How we built it
 
@@ -57,7 +71,7 @@ target encodings are now leave-one-out on the train split.
 ## Try it
 
 ```
+pip install -r requirements.txt     # see requirements.txt for a macOS libomp note
 python run_agent.py                 # the loop
-python dashboard/server.py          # watch it
 python scripts/analyze_runs.py      # the results table
 ```

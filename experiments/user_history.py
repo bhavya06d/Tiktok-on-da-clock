@@ -69,8 +69,9 @@ from evaluate import evaluate
 
 PRIORITY = 6   # placed after the agent's own earlier exploration (bpr_hard_negative*,
                # listwise_softmax, hour_of_day) and merged in alongside multitask.py -
-               # see agent.py's converged_at note on why the loop no longer hard-stops
-               # before reaching genuinely later-added ideas
+               # bumped from the author's original 2, which collided with
+               # bpr_hard_negative.py; see agent.py's converged_at note on why the
+               # loop no longer hard-stops before reaching genuinely later-added ideas
 DESCRIPTION = ('User history: DIN-style candidate-aware attention over the user\'s '
                'last-N pre-example videos, crossed with the current video in the FM.')
 AUTHOR = 'human'
