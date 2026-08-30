@@ -45,14 +45,21 @@ never gets blurred:
 
 See ../PLAN.md for the fuller writeup of this distinction.
 
-## Assigned ideas (see ../PLAN.md)
+## Ideas delivered so far (see ../PLAN.md)
 
-| File | Owner | Idea |
-|---|---|---|
-| `baseline_fm.py` | (done) | Official FM, unmodified — starting champion |
-| `bpr_loss.py` | Person 1 | Pairwise ranking loss (BPR) |
-| `user_history.py` | Person 2 | User interaction history / sequence features |
-| `multitask.py` | Person 3 | Multi-task auxiliary labels |
+| File | Owner | Idea | Result |
+|---|---|---|---|
+| `baseline_fm.py` | (done) | Official FM, unmodified — starting champion | valid 0.6015 (anchor) |
+| `bpr_loss.py` | Person 1 | Pairwise ranking loss (BPR) | valid 0.6037 — best score achievable |
+| `bpr_hard_negative.py`, `bpr_hard_negative_warmstart.py` | agent | Hard-negative mining on BPR (two attempts) | both underperform champion |
+| `listwise_softmax.py` | agent | Listwise softmax loss (BPR generalized to M negatives) | valid 0.6039 — best fully-autonomous score |
+| `hour_of_day.py` | agent | Hour-of-day feature on top of listwise | valid 0.6052 — best raw score in the repo |
+| `user_history.py` | Person 2 | DIN-style candidate-aware attention over user history | valid 0.6010 — underperforms, real negative result (leakage-checked) |
+| `seq_dur_drift.py` | Person 2 (agent-tagged) | Short-term duration-preference drift feature | valid 0.6017 — near-flat |
+
+`multitask.py` (Person 3's assigned idea) hasn't landed here yet, though a
+multitask variant exists in the parallel `run_agent.py`/`solutions/runner.py`
+system (also underperforms there, val 0.5880) - see AGENT.md.
 
 ## How the agent uses this
 
