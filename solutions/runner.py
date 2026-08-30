@@ -116,6 +116,116 @@ def run_fm(split, data_dir, params):
     return res, raw_ev, scores
 
 
+def run_bpr_numpy(split, data_dir, params):
+    """Validated numpy-only pairwise BPR (Person 1's original idea, from
+    experiments/bpr_loss.py in the parallel agent.py harness): same 5-field
+    FM architecture as run_fm above, trained on (positive, uniform-random
+    negative) pairs instead of pointwise logloss. No torch, no warm-start,
+    no list sampling - deliberately the simplest version of the idea.
+
+    Registered as a distinct variant (not replacing run_bpr above) because
+    it's a real, measured result, not a guess: test primary 0.5985 vs the
+    existing torch run_bpr's 0.5653 with default params, and vs the FM
+    baseline's 0.5946. Kept side by side so the difference is visible
+    rather than silently overwritten.
+    """
+    from baseline import FM, build_user_pos_neg
+    from data import encode, load
+    splits = load(data_dir)
+    enc, dim = encode(splits)
+    Xtr, ytr, utr = enc["train"]
+    ev_name = "valid" if split != "test" else "test"
+    Xva, yva, uva = enc["valid"]
+    Xev, yev, uev = enc[ev_name]
+    flat_pos, neg_by_user = build_user_pos_neg(utr, ytr)
+    seed = int(params.get("seed", 0))
+    m = FM(dim, k=int(params.get("k", 16)), lr=float(params.get("lr", 0.0005)), seed=seed)
+    rng = np.random.default_rng(seed)
+    bs = int(params.get("bs", 8192))
+    best, state, bad = -1.0, None, 0
+    for _ in range(int(params.get("epochs", 40))):
+        order = rng.permutation(len(flat_pos))
+        for start in range(0, len(order), bs):
+            batch = [flat_pos[j] for j in order[start:start + bs]]
+            pos_rows = np.array([i for _, i in batch])
+            neg_rows = np.array([neg_by_user[u][rng.integers(len(neg_by_user[u]))] for u, _ in batch])
+            m.step_bpr(Xtr[pos_rows], Xtr[neg_rows])
+        p = evaluate(uva, yva, m.predict(Xva))["primary"]
+        if p > best + 1e-5:
+            best, bad, state = p, 0, (m.V.copy(), m.W.copy(), np.float32(m.b))
+        else:
+            bad += 1
+            if bad >= int(params.get("patience", 4)):
+                break
+    m.V, m.W, m.b = state
+    scores = m.predict(Xev)
+    res = evaluate(uev, yev, scores)
+    ev_df = pd.DataFrame({"user_id": uev, "video_id": [x[2] for x in splits[ev_name]]})
+    return res, ev_df, scores
+
+
+def run_listwise_numpy(split, data_dir, params):
+    """Validated numpy-only listwise softmax (from experiments/listwise_softmax.py
+    in the parallel agent.py harness): for each positive, sample M random
+    negatives from the same user and train with softmax cross-entropy over
+    [positive, neg_1..neg_M] instead of BPR's one-negative-at-a-time pairwise
+    comparison. M=1 reduces exactly to BPR's sigmoid(z_pos - z_neg) - checked
+    by hand before trusting this on real data.
+
+    Measured: val primary 0.6039, test primary 0.5973 with M=4 (this file's
+    default) - the best score found with zero human-written hypothesis
+    (autonomous track champion in the agent.py harness). M=8 and a small
+    learning-rate sweep were also tried and found no better - not re-run here.
+    """
+    from baseline import FM, build_user_pos_neg
+    from data import encode, load
+    splits = load(data_dir)
+    enc, dim = encode(splits)
+    Xtr, ytr, utr = enc["train"]
+    ev_name = "valid" if split != "test" else "test"
+    Xva, yva, uva = enc["valid"]
+    Xev, yev, uev = enc[ev_name]
+    flat_pos, neg_by_user = build_user_pos_neg(utr, ytr)
+    seed = int(params.get("seed", 0))
+    m_neg = int(params.get("m_neg", 4))
+    m = FM(dim, k=int(params.get("k", 16)), lr=float(params.get("lr", 0.0005)), seed=seed)
+    rng = np.random.default_rng(seed)
+    bs = int(params.get("bs", 8192))
+    best, state, bad = -1.0, None, 0
+    for _ in range(int(params.get("epochs", 40))):
+        order = rng.permutation(len(flat_pos))
+        for start in range(0, len(order), bs):
+            batch = [flat_pos[j] for j in order[start:start + bs]]
+            B = len(batch)
+            rows_idx = np.empty((B, 1 + m_neg), dtype=np.int64)
+            rows_idx[:, 0] = [i for _, i in batch]
+            for r, (u, _) in enumerate(batch):
+                pool = neg_by_user[u]
+                rows_idx[r, 1:] = pool[rng.integers(len(pool), size=m_neg)]
+            X = Xtr[rows_idx.reshape(-1)]
+            z, E, S = m.logits(X)
+            zg = z.reshape(B, 1 + m_neg)
+            zg = zg - zg.max(1, keepdims=True)
+            ez = np.exp(zg)
+            p = ez / ez.sum(1, keepdims=True)
+            coef = p.copy()
+            coef[:, 0] -= 1.0
+            coef = (coef / B).astype(np.float32)
+            m._apply_grad(X, E, S, coef.reshape(-1))
+        va = evaluate(uva, yva, m.predict(Xva))["primary"]
+        if va > best + 1e-5:
+            best, bad, state = va, 0, (m.V.copy(), m.W.copy(), np.float32(m.b))
+        else:
+            bad += 1
+            if bad >= int(params.get("patience", 4)):
+                break
+    m.V, m.W, m.b = state
+    scores = m.predict(Xev)
+    res = evaluate(uev, yev, scores)
+    ev_df = pd.DataFrame({"user_id": uev, "video_id": [x[2] for x in splits[ev_name]]})
+    return res, ev_df, scores
+
+
 def run_bpr(split, data_dir, params, workspace):
     """Person-1 idea: replace the FM baseline's POINTWISE logloss with a
     LISTWISE ranking objective (per-user softmax / ListNet), with a BPR
@@ -306,6 +416,10 @@ def run_variant(variant: str, split: str, data_dir: str | None = None,
 
     if variant == "fm":
         res, ev, scores = run_fm(split, data_dir, params)
+    elif variant == "bpr_numpy":
+        res, ev, scores = run_bpr_numpy(split, data_dir, params)
+    elif variant == "listwise_numpy":
+        res, ev, scores = run_listwise_numpy(split, data_dir, params)
     else:
         if variant == "bpr":
             res, ev, scores = run_bpr(split, data_dir, params, workspace)
