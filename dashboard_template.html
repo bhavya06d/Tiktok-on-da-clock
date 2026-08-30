@@ -168,15 +168,14 @@
 
   /* ---------- stat tiles ---------- */
   .stat-grid{
-    display:grid; grid-template-columns:repeat(4,1fr); gap:1px;
+    display:grid; grid-template-columns:repeat(3,1fr); gap:1px;
     background:var(--border); border:1px solid var(--border); border-radius:12px;
     overflow:hidden;
   }
-  @media (max-width:720px){ .stat-grid{ grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:720px){ .stat-grid{ grid-template-columns:1fr; } }
   .stat{ background:var(--surface); padding:18px 18px 16px; }
   .stat-label{ font-size:12px; color:var(--ink-muted); margin-bottom:8px; }
   .stat-value{ font-family:"IBM Plex Mono",monospace; font-size:22px; font-weight:600; letter-spacing:-0.01em; }
-  .stat-value.pending{ color:var(--warning); font-size:16px; }
   .stat-sub{ font-size:12px; color:var(--ink-2); margin-top:5px; }
   .stat-sub.warn{ color:var(--warning); }
   .bar-track{ height:5px; border-radius:3px; background:var(--surface-2); margin-top:9px; overflow:hidden; }
@@ -322,11 +321,10 @@
     background:var(--surface); border:1px solid var(--border); border-radius:14px;
     padding:22px 24px; box-shadow:var(--shadow);
   }
-  .footer-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-bottom:18px; }
+  .footer-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:20px; margin-bottom:18px; }
   @media (max-width:720px){ .footer-grid{ grid-template-columns:1fr; } }
   .fg-label{ font-size:12px; color:var(--ink-muted); margin-bottom:6px; }
   .fg-value{ font-family:"IBM Plex Mono",monospace; font-size:15px; font-weight:600; margin-bottom:6px; }
-  .fg-value.pending{ color:var(--warning); }
   .guardrail{
     display:flex; gap:10px; align-items:flex-start; padding-top:16px; border-top:1px solid var(--border);
     font-size:12.5px; color:var(--ink-2);
@@ -443,10 +441,6 @@ __RUN_DATA__
     if (s < 3600) return Math.floor(s / 60) + 'm ' + Math.round(s % 60) + 's';
     return (s / 3600).toFixed(1) + 'h';
   }
-  function fmtTokens(n){
-    if (n === null || n === undefined) return null;
-    return n.toLocaleString('en-US');
-  }
 
   var baselineTest = bl.fm_official.test.primary;
   var baselineValid = bl.fm_official.valid.primary;
@@ -526,7 +520,6 @@ __RUN_DATA__
   var breakdown = ['baseline', 'human', 'agent'].filter(function(k){ return ac[k]; })
     .map(function(k){ return ac[k] + '&nbsp;' + k; }).join(' &middot; ');
 
-  var tokensFmt = fmtTokens(summary.total_llm_tokens);
   var stats =
     '<div class="stat"><div class="stat-label">Attempts run</div>' +
       '<div class="stat-value tab">' + summary.attempts + '</div>' +
@@ -539,12 +532,7 @@ __RUN_DATA__
     '<div class="stat"><div class="stat-label">Agent wall&#8209;clock</div>' +
       '<div class="stat-value tab">' + fmtSeconds(summary.total_wall_clock_seconds) + '</div>' +
       '<div class="stat-sub">of ' + fmtSeconds(summary.wall_clock_cap_seconds) + ' cap (' + (summary.total_wall_clock_seconds / summary.wall_clock_cap_seconds * 100).toFixed(1) + '%) &middot; ' + (summary.gpu_hours ? summary.gpu_hours + ' GPU&#8209;h' : 'CPU only') + '</div>' +
-      '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(summary.total_wall_clock_seconds / summary.wall_clock_cap_seconds * 100, 0.5) + '%"></div></div></div>' +
-    '<div class="stat"><div class="stat-label">LLM tokens used</div>' +
-      (tokensFmt
-        ? '<div class="stat-value tab">' + tokensFmt + '</div><div class="stat-sub">input + output, this run</div>'
-        : '<div class="stat-value pending">pending</div><div class="stat-sub warn">not auto&#8209;tracked &mdash; pull from usage panel</div>') +
-    '</div>';
+      '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(summary.total_wall_clock_seconds / summary.wall_clock_cap_seconds * 100, 0.5) + '%"></div></div></div>';
   document.getElementById('stat-grid').innerHTML = stats;
 
   /* ================= chart ================= */
@@ -797,15 +785,9 @@ __RUN_DATA__
   });
 
   /* ================= footer ================= */
-  var tokensFmt2 = fmtTokens(summary.total_llm_tokens);
   document.getElementById('footer-grid').innerHTML =
     '<div><div class="fg-label">Wall&#8209;clock (this run)</div><div class="fg-value tab">' + summary.total_wall_clock_seconds.toFixed(2) + 's</div><div class="stat-sub">cap: ' + summary.wall_clock_cap_seconds.toLocaleString('en-US') + 's (' + fmtSeconds(summary.wall_clock_cap_seconds) + ')</div></div>' +
-    '<div><div class="fg-label">GPU&#8209;hours</div><div class="fg-value tab">' + summary.gpu_hours + '</div><div class="stat-sub">numpy, CPU&#8209;only run unless noted</div></div>' +
-    '<div><div class="fg-label">LLM tokens (input + output)</div>' +
-      (tokensFmt2
-        ? '<div class="fg-value tab">' + tokensFmt2 + '</div><div class="stat-sub">recorded</div>'
-        : '<div class="fg-value pending">not yet recorded</div><div class="stat-sub warn">fill in from Claude Code usage panel before submission</div>') +
-    '</div>';
+    '<div><div class="fg-label">GPU&#8209;hours</div><div class="fg-value tab">' + summary.gpu_hours + '</div><div class="stat-sub">numpy, CPU&#8209;only run unless noted</div></div>';
 
   document.getElementById('page-footer').textContent =
     'generated ' + (generatedAt || '') + ' from agent_log.jsonl & agent_summary.json · re-run agent.py then python3 dashboard.py to refresh';
