@@ -47,12 +47,24 @@ See ../PLAN.md for the fuller writeup of this distinction.
 
 ## Assigned ideas (see ../PLAN.md)
 
-| File | Owner | Idea |
-|---|---|---|
-| `baseline_fm.py` | (done) | Official FM, unmodified — starting champion |
-| `bpr_loss.py` | Person 1 | Pairwise ranking loss (BPR) |
-| `user_history.py` | Person 2 | User interaction history / sequence features |
-| `multitask.py` | Person 3 | Multi-task auxiliary labels |
+| File | Owner | Idea | Result |
+|---|---|---|---|
+| `baseline_fm.py` | (done) | Official FM, unmodified — starting champion | valid 0.6015 |
+| `bpr_loss.py` | Person 1 | Pairwise ranking loss (BPR) | valid 0.6037 — **overall champion** |
+| `bpr_hard_negative.py` | agent | Hard-negative mining on top of BPR | valid 0.5803 — discarded |
+| `bpr_hard_negative_warmstart.py` | agent | Warm-start before hard-negative mining | valid 0.6008 — discarded |
+| `listwise_softmax.py` | agent | Listwise softmax loss | valid 0.6039 — **autonomous champion** |
+| `hour_of_day.py` | agent | Hour-of-day as a 6th field on top of listwise softmax | valid 0.6052 — best raw score, but discarded (improvement +0.0014 < ε) |
+| `user_history.py` | Person 2 | DIN-style candidate-aware attention over each user's history | valid 0.6010 — discarded |
+| `multitask.py` | agent | Multi-task FM: shared embeddings, aux head on is_click | valid 0.6018 — discarded |
+
+Note on `hour_of_day.py`: it scores higher than every other attempt, but each
+step since `bpr_loss` improved by less than ε=0.002 over the *immediately
+preceding* champion, so no single step ever re-triggers "new champion" even
+though the cumulative gain from baseline is real. That's the eps/N rule
+applied correctly, not a bug — flagging it here since it's a genuinely
+interesting property of the convergence rule worth understanding rather than
+something to route around.
 
 ## How the agent uses this
 

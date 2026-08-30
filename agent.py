@@ -4,7 +4,11 @@ Auto-discovers every experiment in experiments/*.py (see experiments/README.md
 for the contract each one must follow), runs them in priority order, tracks
 the best validation `primary` score seen so far (the "champion"), and keeps
 or discards each new result using the convergence rule from README.md:
-eps=0.002, N=3 consecutive non-improving attempts stops the run.
+eps=0.002, N=3 consecutive non-improving attempts. Once that first triggers,
+the officially *scored* checkpoint is locked in (see `converged_at` in the
+summary) - but the loop keeps running any remaining experiment files rather
+than stopping dead, so a later session's new ideas still get tried and
+logged instead of being silently skipped by file-ordering alone.
 
 Usage:
     python3 agent.py [--data_dir ./KuaiRand-Pure/data] [--eps 0.002] [--patience 3]
@@ -109,6 +113,14 @@ def main():
     no_improve = 0
     history = []
     converged = False
+    # Index (1-based) and champion identity at the moment convergence first
+    # triggers. Kept separate from `converged`/`champion_name` because the
+    # loop no longer stops there (see below) - later experiment files may
+    # exist (e.g. added in a follow-up session) and still deserve to run and
+    # be logged, but the officially *scored* checkpoint per the eps/N rule
+    # is whichever champion stood at this point, not whatever comes after.
+    converged_at = None
+    champion_at_convergence, champion_at_convergence_test = None, None
 
     for priority, name, mod, author in experiments:
         author_counts[author] = author_counts.get(author, 0) + 1
@@ -178,16 +190,23 @@ def main():
         with open(a.log, 'a') as fh:
             fh.write(json.dumps(_jsonable(entry)) + '\n')
 
-        if no_improve >= a.patience:
-            print(f"\nCONVERGED: {a.patience} consecutive attempts with improvement <= {a.eps}")
+        if no_improve >= a.patience and not converged:
+            print(f"\nCONVERGED at attempt {len(history)}: {a.patience} consecutive attempts "
+                  f"with improvement <= {a.eps}. Scored checkpoint is locked in as of here; "
+                  f"still running any remaining experiment files so nothing already-discovered "
+                  f"gets silently dropped if more ideas were added after this point.")
             converged = True
-            break
+            converged_at = len(history)
+            champion_at_convergence, champion_at_convergence_test = champion_name, champion_test
 
     print(f"\n=== OVERALL BEST: {champion_name} | valid primary={champion_valid_primary:.4f} "
           f"(any author - best score actually achievable) ===")
     if champion_test:
         print(f"    test  GAUC {champion_test['GAUC']:.4f} | nDCG@5 {champion_test['nDCG@5']:.4f} "
               f"| primary {champion_test['primary']:.4f}")
+    if converged_at is not None and champion_name != champion_at_convergence:
+        print(f"    (officially converged at attempt {converged_at} on '{champion_at_convergence}' - "
+              f"'{champion_name}' is a later, better result from experiments added after that point)")
 
     print(f"\n=== AUTONOMOUS CHAMPION: {auto_champion_name} "
           f"(what the agent found on its own, no human-authored ideas) ===")
@@ -216,6 +235,15 @@ def main():
         'author_counts': author_counts,
         'manual_interventions': manual_interventions,
         'converged': converged,
+        # Attempt index (1-based) and champion at the moment convergence first
+        # triggered - the officially *scored* checkpoint per the eps/N rule.
+        # `champion`/`champion_test` above may differ if experiments after
+        # this point (a later session's new ideas) went on to do better -
+        # those are real, honest results too, just not what the convergence
+        # rule itself locks in as the scored submission.
+        'converged_at': converged_at,
+        'champion_at_convergence': champion_at_convergence,
+        'champion_at_convergence_test': champion_at_convergence_test,
         'attempts': len(history),
         'eps': a.eps, 'patience': a.patience,
         # Resource usage required for the Feasibility & Practicality submission section:
