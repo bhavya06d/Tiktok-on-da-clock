@@ -15,6 +15,9 @@ python run_agent.py                 # offline planner — no API key needed
 python run_agent.py --llm anthropic # real Claude loop (needs ANTHROPIC_API_KEY)
 python run_agent.py --inject-fault 2 # demo the crash-recovery path
 python scripts/analyze_runs.py      # results table + autonomy summary
+python runs_to_dashboard_log.py runs/demo/iterations.jsonl && \
+python dashboard.py --log runs_agent_log.jsonl --summary runs_agent_summary.json \
+                    --out runs_dashboard.html   # same dashboard Person 5 built, this system's data
 python scripts/publish_artifact.py  # snapshot a run to one shareable HTML
 ```
 
@@ -36,7 +39,7 @@ Published snapshot of the demo run:
 | Prompts | `agent/prompts.py` | task brief + idea bank citing real methods (LambdaRank, MMoE/ESMM, CWM duration-bias) + compressed history |
 | Variants | `solutions/runner.py` | every idea, one function; all honour the `solution.py` contract and call the **unmodified** `evaluate.py` |
 | Features | `ml/features.py` | shared, leakage-guarded feature engineering (leave-one-out target encoding, temporal, side-features, behavioural history) |
-| Dashboard | `dashboard.py` (Person 5) | renders `agent_log.jsonl`/`agent_summary.json` (the `agent.py` harness's log format) to a static HTML report - **not yet wired to `runs/<name>/iterations.jsonl`** (this system's own log format); reconciling the two is an open gap, see note below |
+| Dashboard | `dashboard.py` (Person 5) | renders `agent_log.jsonl`/`agent_summary.json` to a static HTML report. This system's own log format (`runs/<name>/iterations.jsonl`) is different - bridge it first with `runs_to_dashboard_log.py` (below), then point `dashboard.py` at the converted files |
 
 ### The contract every `solution.py` honours
 - accepts `--split val|test` and `--data-dir <path>`
