@@ -28,6 +28,7 @@ import sys
 KNOWN_TEST_PRIMARY = {
     'bpr_numpy': 0.5985,
     'listwise_numpy': 0.5973,
+    'hour_of_day': 0.5986,
 }
 
 

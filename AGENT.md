@@ -61,6 +61,7 @@ Published snapshot of the demo run:
 | 5b | Same idea, simpler: numpy-only pairwise BPR on the FM architecture | `bpr_numpy` | idea #1 |
 | 5c | Same idea again: numpy-only **listwise softmax** (1 positive vs M random negatives) | `listwise_numpy` | idea #1 |
 | 6 | **Ensemble** on per-user ranks: FM seed-ensemble + LambdaRank blend | `combined` | idea #6 |
+| 7 | **Hour-of-day** feature (day-parting) on the listwise architecture | `hour_of_day` | time features (README headroom) |
 
 Three variants for the same idea (5/5b/5c) is deliberate, not redundancy: see
 Results below - the simpler numpy version is the one that actually works.
@@ -73,43 +74,57 @@ python -m solutions.runner --variant lambdarank --split val
 
 ## Results
 
-Demo run (`runs/demo/`, offline planner, `--inject-fault 2`), regenerate with
-`python run_agent.py --max-iters 14 --inject-fault 2 --run-name demo && python scripts/analyze_runs.py runs/demo/iterations.jsonl`:
+Demo run (`runs/demo/`, offline planner, `--inject-fault 3`), regenerate with
+`python run_agent.py --max-iters 14 --min-iters 7 --inject-fault 3 --run-name demo && python scripts/analyze_runs.py runs/demo/iterations.jsonl`:
 
 | iter | method | val primary | GAUC | nDCG@5 | Δ baseline | decision |
 |---:|---|---:|---:|---:|---:|---|
 | 0 | fm (baseline anchor) | 0.6015 | 0.6671 | 0.5358 | −0.0001 | **KEEP** |
-| 1 | listwise_numpy | 0.6039 | 0.6707 | 0.5372 | +0.0023 | **KEEP (best)** |
-| 2 | fault-injection | — crash — | | | | rolled back to best |
-| 3 | lambdarank | 0.5903 | 0.6519 | 0.5288 | −0.0113 | discard |
-| 4 | history (DIN-lite) | 0.5811 | 0.6397 | 0.5225 | −0.0205 | discard |
-| 5 | multitask (MMoE) | 0.5880 | 0.6486 | 0.5274 | −0.0136 | discard |
-| 6 | combined (FM ⊕ LambdaRank ranks) | 0.6024 | 0.6684 | 0.5364 | +0.0008 | discard → **converged** |
+| 1 | listwise_numpy | 0.6039 | 0.6707 | 0.5372 | +0.0023 | **KEEP** |
+| 2 | hour_of_day | 0.6052 | 0.6719 | 0.5385 | +0.0036 | **KEEP (best)** |
+| 3 | fault-injection | — crash — | | | | rolled back to best |
+| 4 | lambdarank | 0.5903 | 0.6519 | 0.5288 | −0.0113 | discard |
+| 5 | history (DIN-lite) | 0.5811 | 0.6397 | 0.5225 | −0.0205 | discard |
+| 6 | multitask (MMoE) | 0.5880 | 0.6486 | 0.5274 | −0.0136 | discard → **converged** |
 
-**Best: iter 1 `listwise_numpy`, val primary 0.6039 / test primary 0.5973**
-(test measured directly, not inferred - see note below). 7 iterations, **1
-crash recovered, 0 manual interventions**, 4.4 min wall-clock, ε=0.002/N=3
-convergence fired on its own.
+**Best: iter 2 `hour_of_day`, val primary 0.6052 / test primary 0.5986**
+(test measured directly, not inferred - see note below) - the best score in
+either harness, beating even the hand-tuned `bpr_numpy` (0.6037 val). 7
+iterations, **1 crash recovered, 0 manual interventions**, 6.4 min
+wall-clock, ε=0.002/N=3 convergence fired on its own.
 
-**Finding (corrected from an earlier version of this doc).** A ranking loss
-*does* beat pointwise logloss here - the earlier claim that it didn't was an
-artifact of one specific implementation, not the idea itself. The `bpr`
-variant (torch, warm-started FM, list-sampling, K=24) scored only 0.565 with
-its default params - worse than baseline. But the *same idea* implemented
-simply - `listwise_numpy`, plain numpy, no warm-start, M=4 random negatives,
-40 lines - scores 0.6039, a real +0.0023 win. The lesson: when a well-motivated
-idea underperforms, check whether the idea is wrong or the implementation is
-before discarding it. LambdaRank and DIN-style history features did
-genuinely underperform here, independent of implementation. Rank-blending FM
-with LambdaRank (`combined`) is a real but sub-ε improvement (+0.0008),
-correctly treated as convergence, not a win.
+**Findings.**
+1. *(Corrected from an earlier version of this doc.)* A ranking loss *does*
+   beat pointwise logloss here - the original claim that it didn't was an
+   artifact of one implementation, not the idea itself. The `bpr` variant
+   (torch, warm-started, K=24 list-sampling) scored only 0.565 with default
+   params - worse than baseline. The same idea in ~40 lines of plain numpy
+   (`listwise_numpy`, no warm-start, M=4 random negatives) scores 0.6039, a
+   real win. Lesson: when a well-motivated idea underperforms, check whether
+   the idea is wrong or the implementation is, before discarding it.
+2. Every idea up to this point only changed the loss function - nothing had
+   touched what the model actually sees. `hour_of_day` is the first to: one
+   new categorical field (hour-of-day, from the raw `hourmin` column),
+   everything else unchanged, real +0.0013 gain on top of `listwise_numpy`.
+   A same-day follow-up (day-of-week, not committed as a separate file - see
+   its docstring) added nothing further (0.6051, noise-level) - with only 14
+   days of train data, each weekday is seen twice, too sparse to learn from.
+   Rank-ensembling `hour_of_day` with `lambdarank` was also tried and hurt
+   slightly (0.6052 -> 0.6048 as blend weight shifted toward lambdarank) -
+   consistent with lambdarank being too far behind (0.5903) to add value via
+   rank-averaging with a much stronger model.
+3. LambdaRank and DIN-style history/multitask features genuinely underperform
+   here, independent of implementation - not every well-cited method
+   transfers to every dataset, and knowing when to stop is as much the
+   result as knowing what to try.
 
 *Test-primary note:* solution.py's contract only ever prints val metrics for
 `--split test` (the official test split has no labels available to the
-agent, by design - see the contract above). 0.5973 for `listwise_numpy` was
-confirmed separately by direct evaluation with a labeled local test split
-(`agent.py`'s parallel harness, same code/config, seed=0) - not a number the
-agent itself could have seen or used to decide anything.
+agent, by design - see the contract above). 0.5986 for `hour_of_day` (and
+0.5973 for `listwise_numpy`) were confirmed separately by direct evaluation
+with a labeled local test split (`agent.py`'s parallel harness, same
+code/config, seed=0) - not numbers the agent itself could have seen or used
+to decide anything.
 
 ## Robustness / autonomy evidence
 

@@ -91,6 +91,18 @@ class OfflinePlanner:
                  "parallel harness: val primary 0.6039 vs FM's 0.6015, test "
                  "0.5973 vs FM's 0.5946 - the best score found with zero "
                  "human-written hypothesis in that run.")),
+        dict(method="hour_of_day", variant="hour_of_day",
+             params=dict(k=16, lr=0.0005, epochs=40, m_neg=4),
+             hypothesis=(
+                 "Every idea so far only changed the loss function - nothing "
+                 "has touched what the model actually sees. Add hour-of-day "
+                 "(from the raw hourmin column) as a 6th categorical field "
+                 "crossed via FM's pairwise interaction term: day-parting "
+                 "(taste shifting morning/evening/night) is a known effect in "
+                 "recommendation, and the README's own headroom list names "
+                 "time features as untried. Validated in a parallel harness: "
+                 "val primary 0.6052 vs listwise's 0.6039 - best score found "
+                 "by either harness so far.")),
         dict(method="lambdarank", variant="lambdarank",
              params=dict(n_estimators=350, learning_rate=0.06, num_leaves=31),
              hypothesis=(

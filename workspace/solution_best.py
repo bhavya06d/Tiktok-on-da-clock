@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-"""solution.py - rewritten by the agent on iteration 1.
+"""solution.py - rewritten by the agent on iteration 2.
 
-METHOD : listwise_numpy
-HYP    : The eval metrics are ranking metrics but FM optimises pointwise
-         logloss. Same 5-field FM architecture, but for each positive sample
-         M=4 random negatives from the same user and train with softmax cross-
-         entropy over [positive, neg_1..neg_M] (ListNet-style listwise loss;
-         M=1 reduces exactly to BPR's sigmoid(z_pos - z_neg), checked by
-         hand). Validated in a parallel harness: val primary 0.6039 vs FM's
-         0.6015, test 0.5973 vs FM's 0.5946 - the best score found with zero
-         human-written hypothesis in that run.
+METHOD : hour_of_day
+HYP    : Every idea so far only changed the loss function - nothing has
+         touched what the model actually sees. Add hour-of-day (from the raw
+         hourmin column) as a 6th categorical field crossed via FM's pairwise
+         interaction term: day-parting (taste shifting morning/evening/night)
+         is a known effect in recommendation, and the README's own headroom
+         list names time features as untried. Validated in a parallel harness:
+         val primary 0.6052 vs listwise's 0.6039 - best score found by either
+         harness so far.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ if str(ROOT) not in sys.path:
 
 from solutions.runner import run_variant
 
-VARIANT = 'listwise_numpy'
+VARIANT = 'hour_of_day'
 PARAMS = {'k': 16, 'lr': 0.0005, 'epochs': 40, 'm_neg': 4}
 
 
