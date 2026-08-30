@@ -1,14 +1,36 @@
-loading ./KuaiRand-Pure/data ...
-{'train': 1141112, 'valid': 124909, 'test': 170588}
-
 discovered 9 experiment(s): ['baseline_fm', 'bpr_loss', 'bpr_hard_negative', 'bpr_hard_negative_warmstart', 'listwise_softmax', 'hour_of_day', 'user_history', 'multitask', 'seq_dur_drift']
 
---- [0] baseline_fm (author=baseline) — Official FM baseline (k=16, pointwise logloss) — unmodified, starting champion.
-    valid primary=0.6015  test primary=0.5953  improvement=n/a (first)  -> KEPT (new champion)  (117.6s)
---- [1] bpr_loss (author=human) — Pairwise BPR loss (score_pos - score_neg) instead of pointwise logloss.
-    valid primary=0.6037  test primary=0.5985  improvement=+0.0023  -> KEPT (new champion)  (216.1s)
---- [2] bpr_hard_negative (author=agent) — BPR with hard-negative mining (K=5 candidates, pick highest-scoring) instead of uniform random negatives.
-    valid primary=0.5801  test primary=0.5716  improvement=-0.0236  -> DISCARDED  (124.8s)
---- [3] bpr_hard_negative_warmstart (author=agent) — BPR: 5 warm-up epochs with random negatives, then switch to hard-negative mining (K=5).
-    valid primary=0.6008  test primary=0.5959  improvement=-0.0030  -> DISCARDED  (105.8s)
---- [4] listwise_softmax (author=agent) — Listwise softmax loss (1 positive vs M=4 random negatives per user) instead of pairwise BPR.
+--- [0] baseline_fm (author=baseline) - Official FM baseline (k=16, pointwise logloss) — unmodified, starting champion.
+    valid primary=0.6015  test primary=0.5953  improvement=n/a (first)  -> KEPT (new champion)  (52.6s)
+--- [1] bpr_loss (author=human) - Pairwise BPR loss (score_pos - score_neg) instead of pointwise logloss.
+    valid primary=0.6037  test primary=0.5985  improvement=+0.0023  -> KEPT (new champion)  (73.9s)
+--- [2] bpr_hard_negative (author=agent) - BPR with hard-negative mining (K=5 candidates, pick highest-scoring) instead of uniform random negatives.
+    valid primary=0.5801  test primary=0.5716  improvement=-0.0236  -> DISCARDED  (63.0s)
+--- [3] bpr_hard_negative_warmstart (author=agent) - BPR: 5 warm-up epochs with random negatives, then switch to hard-negative mining (K=5).
+    valid primary=0.6008  test primary=0.5959  improvement=-0.0030  -> DISCARDED  (52.5s)
+--- [4] listwise_softmax (author=agent) - Listwise softmax loss (1 positive vs M=4 random negatives per user) instead of pairwise BPR.
+    valid primary=0.6039  test primary=0.5973  improvement=+0.0002  -> DISCARDED  (148.6s)
+
+CONVERGED at attempt 5: 3 consecutive attempts with improvement <= 0.002. Scored checkpoint locked in here; still running any remaining experiment files so nothing already-discovered gets silently dropped.
+--- [5] hour_of_day (author=agent) - Add hour-of-day as a 6th categorical field (time-of-day/day-parting), listwise loss unchanged.
+    valid primary=0.6052  test primary=0.5986  improvement=+0.0014  -> DISCARDED  (164.6s)
+--- [6] user_history (author=human) - User history: DIN-style candidate-aware attention over the user's last-N pre-example videos, crossed with the current video in the FM.
+    valid primary=0.6010  test primary=0.5953  improvement=-0.0028  -> DISCARDED  (96.5s)
+--- [7] multitask (author=agent) - Multi-task FM: shared embeddings, separate linear heads for long_view (main) and is_click (auxiliary, aux_weight=0.3).
+    valid primary=0.6018  test primary=0.5950  improvement=-0.0019  -> DISCARDED  (74.3s)
+--- [8] seq_dur_drift (author=agent) - Short-term duration-preference drift: recent long_view rate for the candidate video-length minus recent baseline, as an extra FM field.
+    valid primary=0.6017  test primary=0.5944  improvement=-0.0021  -> DISCARDED  (73.7s)
+
+=== OVERALL BEST: bpr_loss | valid primary=0.6037 (any author) ===
+    test  GAUC 0.6654 | nDCG@5 0.5316 | primary 0.5985
+
+=== AUTONOMOUS CHAMPION: listwise_softmax (agent-authored only) ===
+    valid primary=0.6039
+    test  GAUC 0.6640 | nDCG@5 0.5306 | primary 0.5973
+
+author breakdown: {'baseline': 1, 'human': 2, 'agent': 6}  (2 human-authored idea(s), 0 failure(s) recovered, 9 attempts)
+total wall-clock: 799.7s of the 21600s cap; 9 of the 50 cap
+
+log: agent_log.jsonl
+summary: agent_summary.json
+NOTE: total_llm_tokens is null - pass --llm-tokens-in/--llm-tokens-out or edit agent_summary.json + results/RESOURCES.md before submitting.

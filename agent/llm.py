@@ -219,14 +219,19 @@ class AnthropicLLM:
         self._in = self._out = 0
 
     def complete(self, prompt: str, state=None) -> tuple[str, dict]:
+        """Returns (reply_text, usage) where usage is
+        {"input": <int>, "output": <int>} for THIS call. Cumulative totals
+        for the whole run come from total_tokens(). This 2-tuple shape must
+        match OfflinePlanner.complete() and what orchestrator.py unpacks."""
         resp = self.client.messages.create(
             model=self.model, max_tokens=self.max_tokens,
             messages=[{"role": "user", "content": prompt}])
-        self._in += resp.usage.input_tokens
-        self._out += resp.usage.output_tokens
+        usage = {"input": int(resp.usage.input_tokens),
+                 "output": int(resp.usage.output_tokens)}
+        self._in += usage["input"]
+        self._out += usage["output"]
         text = "".join(b.text for b in resp.content if b.type == "text")
-        return text, {"input": resp.usage.input_tokens,
-                      "output": resp.usage.output_tokens}
+        return text, usage
 
     def total_tokens(self) -> dict:
         return {"input": self._in, "output": self._out,

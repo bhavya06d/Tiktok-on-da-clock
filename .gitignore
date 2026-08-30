@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
+.cache/
 KuaiRand-Pure/
 KuaiRand-Pure.tar.gz
 submission.csv
@@ -16,3 +17,6 @@ runs_dashboard.html
 # receipts under results/ are deliverables and must stay tracked
 !results/
 !results/**
+# ...except this one: it's a live checkpoint rewritten every run (same info
+# ends up in agent_summary.json), so keep it out of git to avoid churn
+results/champion_checkpoint.json

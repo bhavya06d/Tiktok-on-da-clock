@@ -13,9 +13,10 @@ Test-split scores: run_agent.py's solution.py contract only ever prints
 val metrics for --split test (the agent has no test labels, by design - see
 agent/prompts.py's TASK_BRIEF). KNOWN_TEST_PRIMARY below holds the few
 variants that have been separately, directly confirmed by running
-`solutions.runner.run_variant(variant, 'test', ...)` by hand (see AGENT.md's
-Results section) - not something the agent itself ever saw or used to decide
-anything. Any other variant's test score is left null rather than guessed.
+`solutions.runner.run_variant(variant, 'test', ...)` by hand (the results
+table is in the top-level README) - not something the agent itself ever saw
+or used to decide anything. Any other variant's test score is left null
+rather than guessed.
 
 Usage:
     python3 runs_to_dashboard_log.py runs/demo/iterations.jsonl

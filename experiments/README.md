@@ -20,7 +20,11 @@ file, so there is nothing to merge-conflict over.
    earlier) and `DESCRIPTION` (str, shown in the agent's log — treat it as
    the hypothesis being tested, judges read this).
 5. Never modify `evaluate.py` — it's the fixed scoring contract.
-6. Files starting with `_` (like `_template.py`) are skipped by discovery.
+6. Files starting with `_` (like `_template.py`, `_runner.py`) are skipped by discovery.
+7. Your `run(splits)` executes in its **own subprocess** (`_runner.py`) with a
+   hard 30-minute timeout. Keep a single train+eval well under that. If it
+   crashes or hangs, the orchestrator logs the traceback and moves on — it
+   never takes down the loop, and the champion is untouched.
 
 ## Why AUTHOR matters (read this)
 
