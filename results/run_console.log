@@ -1,0 +1,14 @@
+loading ./KuaiRand-Pure/data ...
+{'train': 1141112, 'valid': 124909, 'test': 170588}
+
+discovered 9 experiment(s): ['baseline_fm', 'bpr_loss', 'bpr_hard_negative', 'bpr_hard_negative_warmstart', 'listwise_softmax', 'hour_of_day', 'user_history', 'multitask', 'seq_dur_drift']
+
+--- [0] baseline_fm (author=baseline) — Official FM baseline (k=16, pointwise logloss) — unmodified, starting champion.
+    valid primary=0.6015  test primary=0.5953  improvement=n/a (first)  -> KEPT (new champion)  (117.6s)
+--- [1] bpr_loss (author=human) — Pairwise BPR loss (score_pos - score_neg) instead of pointwise logloss.
+    valid primary=0.6037  test primary=0.5985  improvement=+0.0023  -> KEPT (new champion)  (216.1s)
+--- [2] bpr_hard_negative (author=agent) — BPR with hard-negative mining (K=5 candidates, pick highest-scoring) instead of uniform random negatives.
+    valid primary=0.5801  test primary=0.5716  improvement=-0.0236  -> DISCARDED  (124.8s)
+--- [3] bpr_hard_negative_warmstart (author=agent) — BPR: 5 warm-up epochs with random negatives, then switch to hard-negative mining (K=5).
+    valid primary=0.6008  test primary=0.5959  improvement=-0.0030  -> DISCARDED  (105.8s)
+--- [4] listwise_softmax (author=agent) — Listwise softmax loss (1 positive vs M=4 random negatives per user) instead of pairwise BPR.

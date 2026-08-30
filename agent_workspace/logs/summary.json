@@ -1,0 +1,44 @@
+{
+  "converged": true,
+  "stop_reason": "converged: 3 consecutive iterations with improvement <= 0.002",
+  "iterations_run": 4,
+  "champion_strategy": "baseline",
+  "champion_valid_primary": 0.6019,
+  "champion_valid_gauc": 0.667997,
+  "champion_valid_ndcg5": 0.535768,
+  "champion_test_primary": 0.594932,
+  "fm_baseline_valid": 0.6016,
+  "oracle_ceiling_valid": 0.8484,
+  "delta_over_baseline": 0.0003,
+  "pct_of_oracle_headroom": 0.0012,
+  "peak_history": [
+    {
+      "iteration": 0,
+      "peak_primary": 0.6019,
+      "decision": "KEEP"
+    },
+    {
+      "iteration": 1,
+      "peak_primary": 0.6019,
+      "decision": "DISCARD"
+    },
+    {
+      "iteration": 2,
+      "peak_primary": 0.6019,
+      "decision": "ERROR"
+    },
+    {
+      "iteration": 3,
+      "peak_primary": 0.6019,
+      "decision": "DISCARD"
+    }
+  ],
+  "manual_interventions": 0,
+  "eps": 0.002,
+  "patience": 3,
+  "max_iters": 50,
+  "step_timeout_sec": 1800,
+  "wall_clock_sec": 457.8,
+  "scorer": "official evaluate.py",
+  "timestamp": "2026-08-30 02:30:30"
+}

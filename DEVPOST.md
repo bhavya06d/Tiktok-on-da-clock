@@ -1,77 +1,97 @@
-# Devpost submission — KuaiRand Autonomous ML Research Agent
+# Devpost — Autonomous ML Research Agent for KuaiRand-Pure
 
 ## Inspiration
 
-Most entries to a "beat the baseline" task hand-tune a model and report a
-number. The KuaiRand-Pure starter kit itself warns that this baseline is hard
-to move: it already eats ~30% of the usable range between random and a perfect
-oracle, and every feature/capacity tweak the organizers tried failed. So we
-built the thing that's actually interesting to watch — an **autonomous research
-loop** that proposes a hypothesis, writes the code, runs the official scorer,
-decides keep-or-discard, and moves on, logging every step.
+Most "beat the baseline" entries hand-tune a model and report a number. The
+KuaiRand-Pure starter kit itself says that's hard here: the FM baseline already
+consumes ~30% of the usable range between random and a perfect oracle, and every
+static-feature / capacity tweak the organizers tried failed. So we built the
+thing that's actually worth watching — an autonomous research loop that proposes
+an idea, writes the code for it, runs the official scorer, decides
+keep-or-discard against the running champion, and moves on, logging every step.
 
 ## What it does
 
-`python run_agent.py` runs unattended. Each iteration the agent:
+`python agent.py` runs unattended. It auto-discovers every `experiments/*.py`
+(each a self-contained hypothesis exposing `run(splits)`), and for each one:
 
-1. **proposes** the next idea from a queue drawn from the README's own
-   "headroom" list — ranking loss, user-history features, multi-task learning,
-   watch-time censored regression, pairwise/listwise BPR, rank-ensembling —
-   each with a written hypothesis citing the method it draws on
-   (LambdaRank, MMoE/ESMM, CWM);
-2. **rewrites** `solution.py` to implement it;
-3. **runs** it in a sandboxed subprocess (timeout + traceback capture);
-4. **scores** it with the unmodified `evaluate.py`;
-5. **decides** keep or discard against the current best;
-6. **stops** when the dataset's own convergence rule fires — ε = 0.002, N = 3.
+1. **runs** it — trains on the train split only, scores on validation with the
+   **unmodified** official `evaluate.py`;
+2. **decides** — keep as the new champion only if it beats the current
+   champion's validation primary by more than ε = 0.002; otherwise discard;
+3. **converges** — after N = 3 consecutive non-improving attempts it locks in
+   the scored checkpoint (`converged_at` in the summary);
+4. **logs** — every attempt's hypothesis, **full source code**, valid + test
+   metrics, decision, and any error/traceback goes to `agent_log.jsonl`;
+   `agent_summary.json` carries the champions, resource totals and convergence
+   point. `dashboard.py` renders both into a static HTML report.
 
-A live dashboard shows the score-over-time trajectory against the oracle
-ceiling, every hypothesis → diff → score → decision, and the recovery events.
+Each idea is written by Claude in-session (tagged `AUTHOR = 'agent'`) or by a
+teammate (`AUTHOR = 'human'`, counted as a manual intervention). `agent.py`
+tracks **two champions in parallel** — overall best, and best among
+agent-authored ideas only — so the autonomy claim is never inflated.
 
 ## How we frame results
 
-Against the **oracle ceiling (0.8484 val / 0.8645 test)**, not 1.0. The FM
+Against the **oracle ceiling (0.8484 val / 0.8645 test)**, not 1.0 — the FM
 baseline already sits at ~31% of that headroom, so "0.60 vs a perfect 1.0" is
 the wrong mental model.
 
-## What we found
+## What the agent found
 
-The organizers' hypothesis that a ranking loss would be the biggest win **did
-hold** — a listwise softmax loss on the same FM architecture beat the
-pointwise baseline (val 0.6039 vs 0.6015). That result took two tries: a more
-elaborate torch implementation (warm-started, K=24 list sampling) scored only
-0.565 with default params, which could easily read as "the idea failed" — but
-the same idea implemented simply, in ~40 lines of plain numpy, was a real win.
+| | val primary | test primary | vs FM baseline |
+|---|---|---|---|
+| FM baseline (official) | 0.6016 | 0.5946 | — |
+| listwise softmax loss (agent) | 0.6039 | 0.5973 | +0.0027 |
+| **+ hour-of-day feature (agent) — champion** | **0.6052** | **0.5986** | **+0.0040** |
 
-Every idea up to that point only changed the loss function — nothing had
-touched what the model actually sees. The run's best result, `hour_of_day`
-(val 0.6052, test 0.5986), is the first to: one new categorical field
-(hour-of-day, from the raw `hourmin` column — day-parting is a known effect
-in recommendation, and time features were the README's own untried headroom
-item). A same-day follow-up, day-of-week, added nothing further — with only
-14 days of train data, each weekday is seen twice, too sparse to learn from.
-Rank-ensembling with LambdaRank was tried too and slightly hurt, since
-LambdaRank alone was too far behind to add value via averaging.
+Two findings we'd highlight:
 
-LambdaRank and DIN-style history/multitask features did genuinely
-underperform here, independent of implementation — not every well-cited
-method transfers to every dataset. That discipline — trying real ideas,
-keeping only what clears the bar, catching "idea vs. implementation" before
-writing off a hypothesis, knowing when a follow-up isn't paying off, stopping
-on the stated rule, zero human intervention — is the submission.
+1. **Idea vs. implementation.** A ranking loss *does* beat pointwise logloss
+   here — but our first attempt (a warm-started torch BPR with K=24
+   list-sampling) scored 0.565, which reads exactly like "the idea failed." The
+   same idea in ~40 lines of plain numpy (listwise softmax, M=4 random
+   negatives) was a real win at 0.6039. The agent's job includes noticing that
+   distinction before discarding a hypothesis.
+2. **The first feature-side win.** Every idea up to `hour_of_day` only changed
+   the loss function. `hour_of_day` adds one categorical field (hour, from the
+   raw `hourmin` column — day-parting is a known recsys effect and time
+   features were the README's own untried headroom item). A same-day
+   day-of-week follow-up added nothing — 14 days of train data means each
+   weekday appears twice, too sparse to learn.
+
+LambdaRank and DIN-style history / multi-task features genuinely underperform on
+this dataset, independent of implementation — the agent tried all three and
+discarded all three. Knowing when to stop is as much the result as knowing what
+to try.
 
 ## How we built it
 
-Python, `numpy / pandas / scikit-learn / lightgbm / torch`. The agent
-(`agent/`) is model-agnostic; the brain is swappable between a deterministic
-offline planner (runs with no API key, for the live demo) and a real Claude
-client with token accounting. Leakage was a real bug we hit and fixed —
-target encodings are now leave-one-out on the train split.
+Pure numpy for the agent path (`agent.py`, `baseline.py`, `experiments/`) — no
+GPU, ~10 min per full run on a laptop CPU. `evaluate.py` is imported unmodified.
+Each experiment fails independently — a crashing experiment is caught, its
+traceback logged, and the loop continues. Committed receipts of a full run live
+in [`results/`](results/).
+
+Team: P1 pairwise BPR loss · P2 user-history / sequence features · P3 multi-task
+learning · P4 the agent loop & reliability · P5 experiment tracking + this
+write-up.
 
 ## Try it
 
+```bash
+pip install numpy
+python agent.py --reveal-test-live
+python dashboard.py --out dashboard.html
+python make_final_submission.py --split test
+python submit.py --check --split test submission.csv
 ```
-pip install -r requirements.txt     # see requirements.txt for a macOS libomp note
-python run_agent.py                 # the loop
-python scripts/analyze_runs.py      # the results table
-```
+
+## Known limitations
+
+- Score gain is +0.004 test primary — real and past the ε threshold, but ~1.6%
+  of the oracle headroom.
+- `agent.py` runs experiments in-process: it catches Python exceptions but an
+  OS-level OOM kill or a true infinite hang would stop the loop. A
+  subprocess-isolated executor with a 30-min timeout and rollback exists in
+  `agent/executor.py` and `agent_workspace/`, not yet merged into `agent.py`.

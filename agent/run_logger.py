@@ -50,8 +50,7 @@ class RunLogger:
         headroom = ((best - baseline_primary) /
                     (oracle_primary - baseline_primary)
                     if state.history else 0.0)
-        self._write({
-            "type": "summary",
+        summary_data = {
             "iterations_used": len(state.history),
             "best_val_primary": best,
             "best_iter": state.best_iter,
@@ -65,4 +64,12 @@ class RunLogger:
             "llm_tokens": total_tokens,
             "baseline_primary": baseline_primary,
             "oracle_primary": oracle_primary,
+        }
+        summary_path = self.run_dir / "agent_summary.json"
+        with summary_path.open("w", encoding="utf-8") as f:
+            json.dump(summary_data, f, indent=2)
+
+        self._write({
+            "type": "summary",
+            **summary_data,
         })

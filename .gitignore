@@ -11,3 +11,8 @@ dashboard.html
 runs_agent_log.jsonl
 runs_agent_summary.json
 runs_dashboard.html
+
+# working-tree scratch is ignored (above), but the committed canonical run
+# receipts under results/ are deliverables and must stay tracked
+!results/
+!results/**

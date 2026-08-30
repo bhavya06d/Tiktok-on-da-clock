@@ -1,0 +1,7 @@
+# transient state produced by run_agent.py -- safe to delete anytime
+.cache/
+__pycache__/
+solution_backup.py
+
+# logs/ is a deliverable: commit a good run, but the working files churn
+logs/agent.log

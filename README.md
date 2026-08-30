@@ -1,4 +1,79 @@
-# KuaiRand-Pure Starter Kit
+# Autonomous ML Research Agent — KuaiRand-Pure
+
+**TikTok TechJam 2026, Track 2.** An autonomous loop that improves a within-user
+short-video ranking model on its own: it proposes an idea, writes the code for
+it, trains, scores with the *unmodified* official `evaluate.py`, decides
+keep-or-discard against the running champion, and repeats — stopping on the
+dataset's own convergence rule (ε = 0.002, N = 3). Progress is measured against
+the **oracle ceiling (val 0.8484 / test 0.8645)**, not against 1.0.
+
+## Result
+
+| | val primary | test primary | vs FM baseline |
+|---|---|---|---|
+| FM baseline (official) | 0.6016 | 0.5946 | — |
+| **Champion — `listwise softmax + hour-of-day`** | **0.6052** | **0.5986** | **+0.0040** |
+
+Autonomously discovered (agent-authored experiment, `AUTHOR = 'agent'`). The
+agent also correctly **discarded** LambdaRank and DIN-style history/multi-task
+features — they genuinely underperform here — and stopped on the ε/N rule with
+**0 unplanned human intervention** inside the run.
+
+## Reproduce
+
+```bash
+pip install numpy                       # the agent path is numpy-only
+# put the dataset at ./KuaiRand-Pure/data/  (see "数据" below)
+
+python agent.py --reveal-test-live      # the autonomous loop — writes
+                                        #   agent_log.jsonl + agent_summary.json
+python dashboard.py --out dashboard.html # renders the run into a static report
+python make_final_submission.py --split test   # trains champion -> submission.csv
+python submit.py --check --split test submission.csv    # validate format
+```
+
+A committed run lives in [`results/`](results/) so it's verifiable on clone.
+
+## Which file is "the agent"?
+
+`agent.py` is the scored system: it auto-discovers every `experiments/*.py`,
+runs it, applies the ε/N rule, and logs each attempt (hypothesis + full source +
+score + decision) to `agent_log.jsonl`. `agent/` + `run_agent.py` is an earlier
+self-contained variant, kept for its subprocess-isolation + rollback design;
+`agent_workspace/` is a Person-4 reliability prototype. Not the scored path.
+
+## Team contributions
+
+| Person | Area | Files |
+|---|---|---|
+| 1 | Pairwise ranking loss (BPR) | `experiments/bpr_loss.py`, `baseline.py:run_fm_bpr` |
+| 2 | User history / sequence features | `experiments/user_history.py`, `experiments/seq_dur_drift.py` |
+| 3 | Multi-task learning | `experiments/multitask.py` |
+| 4 | Agent loop & reliability | `agent.py`, `agent/`, `experiments/README.md` |
+| 5 | Experiment tracking & demo | `dashboard.py`, `dashboard_template.html`, `runs/`, `results/` |
+
+Agent-authored experiments (`hour_of_day`, `listwise_softmax`,
+`bpr_hard_negative*`, `seq_dur_drift`) were written by Claude in-session and are
+tagged `AUTHOR = 'agent'`; hand-written ones are `AUTHOR = 'human'` and counted
+as interventions — see `experiments/README.md`.
+
+## Limitations (honest)
+
+- The score gain is **+0.004 test primary** — real and above the ε threshold,
+  but ~1.6 % of the oracle headroom. Ranking loss + one time feature is the
+  ceiling we found in the compute budget.
+- `agent.py` runs each experiment **in-process**: it catches Python exceptions
+  and logs the traceback, but an OS-level OOM kill or a true infinite hang
+  would stop the loop. The subprocess-isolated executor with a 30-min timeout
+  and `solution_backup.py` rollback lives in `agent/executor.py` /
+  `agent_workspace/` and is not yet merged into `agent.py`.
+- `agent.py` records the scored checkpoint at the moment ε/N first fires
+  (`converged_at` in the summary) but keeps running any later experiment files
+  rather than halting hard, so nothing already written gets skipped.
+
+---
+
+# KuaiRand-Pure Starter Kit (original)
 
 ## 依赖
 

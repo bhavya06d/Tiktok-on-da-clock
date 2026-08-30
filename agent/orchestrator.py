@@ -129,13 +129,14 @@ def run_agent(workspace: Path, data_dir: Path, llm, logger: RunLogger,
         result: ExecResult = run_solution(workspace, data_dir, split="val")
 
         if result.metrics is None:
+            logger.event(i, "ERROR", detail=result.error)
             rec = IterationRecord(i, hypothesis, method, None, result.error,
                                   False, variant, params)
             decision = "failed"
             if best_copy.exists():
                 shutil.copy(best_copy, solution)
-                logger.event(i, "rolled_back_to_best",
-                             detail=f"after: {(result.error or '')[:160]}")
+                logger.event(i, "RECOVERY",
+                             detail=f"Rolled back to best solution from iteration {state.best_iter}")
                 decision = "failed -> rolled back to best"
         else:
             primary = result.metrics["primary"]
