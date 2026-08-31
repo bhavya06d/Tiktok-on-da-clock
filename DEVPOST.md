@@ -1,4 +1,4 @@
-# Devpost — Autonomous ML Research Agent for KuaiRand-Pure
+# Devpost: Autonomous ML Research Agent for KuaiRand-Pure
 
 ## What we built
 
@@ -12,7 +12,7 @@ filter). Bounded that way, our official checkpoint is `listwise_softmax`
 (listwise ranking loss), validation primary 0.6039 against the official
 baseline's 0.6016, a real gain of +0.0023, agent-authored with zero
 human-written hypothesis behind it. That sits against an oracle ceiling of
-0.8645, not 1.0 — the baseline already spends about 31% of the usable
+0.8645, not 1.0. The baseline already spends about 31% of the usable
 range, so the real headroom left is about 25 points, not a full point of
 daylight to a perfect score.
 
@@ -58,7 +58,7 @@ Within the scored window, 1 idea was human-authored (`bpr_loss`, tried and
 not selected) against 4 agent-authored attempts, so the scored checkpoint
 needed zero human-written hypothesis behind it. Across the full 9-attempt
 run, `author_counts` is 1 baseline, 2 human-authored, 6 agent-authored,
-giving 2 manual interventions total — the second human idea (`user_history`)
+giving 2 manual interventions total. The second human idea (`user_history`)
 came after convergence, reported honestly but not counted against the
 scored result. Convergence itself, 3 consecutive attempts under the 0.002
 threshold, was detected and stopped by the loop, not called by a person.
@@ -76,7 +76,7 @@ only rolling quota usage, reported here as roughly 66% of a 5-hour session
 and 58% of the weekly limit at time of writing rather than left blank.
 
 A second, independent implementation also exists (`agent/` + `run_agent.py`,
-real Anthropic API wiring and live token accounting) — not the scored path
+real Anthropic API wiring and live token accounting), not the scored path
 for this submission, but a second working system.
 
 ## One honest limitation
@@ -85,8 +85,8 @@ The scored gain is real but modest, about 1% of the attainable headroom
 between baseline and oracle on test. Three structurally different ideas,
 ranking loss, a time feature, and (via a teammate) behavioral history and
 multi-task learning, were each implemented correctly and tested honestly,
-and only the loss-function change actually became the scored checkpoint —
-the time-feature result that scored higher still (hour-of-day, reported
+and only the loss-function change actually became the scored checkpoint.
+The time-feature result that scored higher still (hour-of-day, reported
 above) arrived after the run had already converged, so it stands as a real
 finding but not the submitted one. The agent stops correctly when an idea
 plateaus. It does not yet redirect its own search toward a meaningfully

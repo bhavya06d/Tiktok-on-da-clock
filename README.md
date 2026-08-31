@@ -1,9 +1,9 @@
-# Autonomous ML Research Agent — KuaiRand-Pure
+# Autonomous ML Research Agent: KuaiRand-Pure
 
 **TikTok TechJam 2026, Track 2.** An autonomous loop that improves a within-user
 short-video ranking model on its own: it proposes an idea, writes the code for
 it, trains, scores with the *unmodified* official `evaluate.py`, decides
-keep-or-discard against the running champion, and repeats — stopping on the
+keep-or-discard against the running champion, and repeats, stopping on the
 dataset's own convergence rule (ε = 0.002, N = 3). Progress is measured against
 the **oracle ceiling (val 0.8484 / test 0.8645)**, not against 1.0.
 
@@ -11,22 +11,22 @@ the **oracle ceiling (val 0.8484 / test 0.8645)**, not against 1.0.
 
 The scoring rule separates two things: *when to stop* (ε=0.002/N=3, the
 patience rule) and *which checkpoint counts as best* ("the validation-best
-checkpoint at that point" — plain best-so-far, not gated by ε). Bounded to
+checkpoint at that point", plain best-so-far, not gated by ε). Bounded to
 attempts up through the convergence trigger (attempt 5 of 9):
 
 | | val primary | test primary | vs FM baseline |
 |---|---|---|---|
-| FM baseline (official) | 0.6016 | 0.5946 | — |
-| **Official checkpoint — `listwise softmax loss`** | **0.6039** | **0.5973** | **+0.0027** |
+| FM baseline (official) | 0.6016 | 0.5946 | n/a |
+| **Official checkpoint: `listwise softmax loss`** | **0.6039** | **0.5973** | **+0.0027** |
 
-Agent-authored (`AUTHOR = 'agent'`), 0 human intervention needed to reach it —
-though 1 human-authored idea (`bpr_loss`, 0.6037) was also tried within that
+Agent-authored (`AUTHOR = 'agent'`), 0 human intervention needed to reach it.
+1 human-authored idea (`bpr_loss`, 0.6037) was also tried within that
 same window and did not win. `agent.py` keeps running remaining experiment
 files after convergence so nothing gets silently dropped from the log; that
 continuation later found an even higher raw score
 (`hour_of_day`, 0.6052 val / 0.5986 test) and 1 more human-authored idea
 (`user_history`), but neither is eligible as the *scored* checkpoint under
-the rule's "at that point" wording — see `agent.py`'s comments and
+the rule's "at that point" wording. See `agent.py`'s comments and
 `results/RESOURCES.md` for the full reasoning. 2 human-authored ideas were
 tried across the full 9-attempt run; 1 of those fell within the scored
 window.
@@ -37,7 +37,7 @@ window.
 pip install numpy                       # the agent path is numpy-only
 # put the dataset at ./KuaiRand-Pure/data/  (see "数据" below)
 
-python agent.py --reveal-test-live      # the autonomous loop — writes
+python agent.py --reveal-test-live      # the autonomous loop; writes
                                         #   agent_log.jsonl + agent_summary.json
 python dashboard.py --out dashboard.html # renders the run into a static report
 python make_final_submission.py --split test   # trains champion -> submission.csv
@@ -53,7 +53,7 @@ runs each in its own subprocess with a 30-min hard timeout
 (`experiments/_runner.py`), applies the ε/N rule, and logs each attempt
 (hypothesis + full source + score + decision) to `agent_log.jsonl`. `agent/` +
 `run_agent.py` is a separate, LLM-in-the-loop implementation (real Anthropic
-API calls, `solutions/runner.py`'s variant set) — not the scored path, but a
+API calls, `solutions/runner.py`'s variant set), not the scored path, but a
 second working system, documented in `AGENT.md`.
 
 ## Team contributions
@@ -69,16 +69,18 @@ second working system, documented in `AGENT.md`.
 Agent-authored experiments (`hour_of_day`, `listwise_softmax`,
 `bpr_hard_negative*`, `seq_dur_drift`) were written by Claude in-session and are
 tagged `AUTHOR = 'agent'`; hand-written ones are `AUTHOR = 'human'` and counted
-as interventions — see `experiments/README.md`.
+as interventions. See `experiments/README.md`.
 
 ## Limitations (honest)
 
-- The score gain is **+0.004 test primary** — real and above the ε threshold,
-  but ~1.6 % of the oracle headroom. Ranking loss + one time feature is the
-  ceiling we found in the compute budget.
+- The score gain is **+0.0027 test primary** (official checkpoint), real and
+  above the ε threshold, but ~1.0% of the oracle headroom. Ranking loss is
+  the ceiling the scored checkpoint reached; a later time-feature idea
+  scored higher (0.0040) but fell outside the scored window (see `Result`
+  above).
 - `agent.py` runs each experiment in its own subprocess with a 30-min hard
   timeout, so a hang or crash in one experiment can't take down the loop or
-  corrupt the champion state — verified with a real injected crash (see
+  corrupt the champion state. Verified with a real injected crash (see
   `experiments/README.md`).
 - `agent.py` records the scored checkpoint at the moment ε/N first fires
   (`converged_at` in the summary) but keeps running any later experiment files
