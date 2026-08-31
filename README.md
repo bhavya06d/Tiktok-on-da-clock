@@ -37,10 +37,12 @@ A committed run lives in [`results/`](results/) so it's verifiable on clone.
 ## Which file is "the agent"?
 
 `agent.py` is the scored system: it auto-discovers every `experiments/*.py`,
-runs it, applies the ε/N rule, and logs each attempt (hypothesis + full source +
-score + decision) to `agent_log.jsonl`. `agent/` + `run_agent.py` is an earlier
-self-contained variant, kept for its subprocess-isolation + rollback design;
-`agent_workspace/` is a Person-4 reliability prototype. Not the scored path.
+runs each in its own subprocess with a 30-min hard timeout
+(`experiments/_runner.py`), applies the ε/N rule, and logs each attempt
+(hypothesis + full source + score + decision) to `agent_log.jsonl`. `agent/` +
+`run_agent.py` is a separate, LLM-in-the-loop implementation (real Anthropic
+API calls, `solutions/runner.py`'s variant set) — not the scored path, but a
+second working system, documented in `AGENT.md`.
 
 ## Team contributions
 
@@ -62,11 +64,10 @@ as interventions — see `experiments/README.md`.
 - The score gain is **+0.004 test primary** — real and above the ε threshold,
   but ~1.6 % of the oracle headroom. Ranking loss + one time feature is the
   ceiling we found in the compute budget.
-- `agent.py` runs each experiment **in-process**: it catches Python exceptions
-  and logs the traceback, but an OS-level OOM kill or a true infinite hang
-  would stop the loop. The subprocess-isolated executor with a 30-min timeout
-  and `solution_backup.py` rollback lives in `agent/executor.py` /
-  `agent_workspace/` and is not yet merged into `agent.py`.
+- `agent.py` runs each experiment in its own subprocess with a 30-min hard
+  timeout, so a hang or crash in one experiment can't take down the loop or
+  corrupt the champion state — verified with a real injected crash (see
+  `experiments/README.md`).
 - `agent.py` records the scored checkpoint at the moment ε/N first fires
   (`converged_at` in the summary) but keeps running any later experiment files
   rather than halting hard, so nothing already written gets skipped.

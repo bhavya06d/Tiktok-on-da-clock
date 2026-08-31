@@ -91,7 +91,7 @@ python submit.py --check --split test submission.csv
 
 - Score gain is +0.004 test primary — real and past the ε threshold, but ~1.6%
   of the oracle headroom.
-- `agent.py` runs experiments in-process: it catches Python exceptions but an
-  OS-level OOM kill or a true infinite hang would stop the loop. A
-  subprocess-isolated executor with a 30-min timeout and rollback exists in
-  `agent/executor.py` and `agent_workspace/`, not yet merged into `agent.py`.
+- Total LLM token usage for the Claude Code sessions that authored the
+  agent-tagged experiments isn't separately metered (flat-rate subscription,
+  not the pay-per-token API) — reported as quota-percentage instead; see
+  `results/RESOURCES.md`.
