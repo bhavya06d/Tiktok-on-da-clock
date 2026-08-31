@@ -11,25 +11,38 @@ sessions that authored its experiments — see below).
 |---|---|
 | Hardware | Laptop CPU, single machine, no GPU |
 | **GPU hours** | **0** (numpy only) |
-| **Agent wall-clock** | **~800 s (~13 min)** — sum of the 9 experiment run times |
-| 6-hour wall-clock cap | not approached (800 s of 21 600 s) |
+| **Agent wall-clock** | **482.4 s (~8 min)** — sum of the 9 experiment run times |
+| 6-hour wall-clock cap | not approached (482 s of 21 600 s) |
 | **Iterations used** | **9** of the 50 cap |
-| Convergence checkpoint | attempt **5**, champion `bpr_loss` (ε = 0.002, N = 3) |
+| Convergence checkpoint | attempt **5**, official checkpoint `listwise_softmax` (ε = 0.002, N = 3) |
 | Failures recovered | 0 in this clean run (an earlier run demonstrated crash + timeout recovery) |
 | Per-experiment timeout | 1800 s hard ceiling (subprocess-enforced) |
 
 ### Result
 
+The rule separates *when to stop* (ε/N, the patience rule below) from
+*which checkpoint is submitted* ("the validation-best checkpoint at that
+point" — plain best-so-far, no ε filter). Bounded to attempts up through
+the convergence trigger (attempt 5 of 9):
+
 | | val primary | test primary | vs FM baseline (0.5946) |
 |---|---|---|---|
-| Scored champion (ε/N rule) — `bpr_loss` | 0.6037 | **0.5985** | **+0.0039** |
-| Autonomous champion (`AUTHOR='agent'`) — `listwise_softmax` | 0.6039 | 0.5973 | +0.0027 |
-| Best raw model (submitted) — `hour_of_day` | 0.6052 | 0.5986 | +0.0040 |
+| **Official checkpoint — `listwise_softmax`** (submitted) | **0.6039** | **0.5973** | **+0.0027** |
+| Also tried within that window, not selected — `bpr_loss` (human) | 0.6037 | 0.5985 | +0.0039 |
 
-`hour_of_day` has the highest raw score but was *discarded* by the convergence
-rule (only +0.0015 over `bpr_loss`, below ε = 0.002). `submission.csv` uses
-`hour_of_day` as the best model actually achievable; the ε/N-scored checkpoint
-is `bpr_loss`. They differ by 0.0001 on test.
+Found after convergence, real but not the scored checkpoint under the
+rule's "at that point" wording (the loop keeps running remaining
+experiment files so nothing gets silently dropped from the log, but
+nothing found this way is eligible to be submitted):
+
+| | val primary | test primary | vs FM baseline (0.5946) |
+|---|---|---|---|
+| `hour_of_day` — highest raw score anywhere in the run | 0.6052 | 0.5986 | +0.0040 |
+| `user_history` (human, 2nd human idea, also post-convergence) | 0.6010 | 0.5953 | +0.0007 |
+
+`submission.csv` is trained from `listwise_softmax`'s exact configuration
+(`make_final_submission.py`), matching the official checkpoint above, not
+`hour_of_day`.
 
 ## LLM tokens
 

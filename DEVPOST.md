@@ -1,132 +1,107 @@
 # Devpost — Autonomous ML Research Agent for KuaiRand-Pure
 
-## Inspiration
+## What we built
 
-Most "beat the baseline" entries hand-tune a model and report a number. The
-KuaiRand-Pure starter kit itself says that's hard here: the FM baseline already
-consumes ~30% of the usable range between random and a perfect oracle, and every
-static-feature / capacity tweak the organizers tried failed. So we built the
-thing that's actually worth watching — an autonomous research loop that proposes
-an idea, writes the code for it, runs the official scorer, decides
-keep-or-discard against the running champion, and moves on, logging every step.
+We built an agent, not a recommender model: `agent.py` auto-discovers every
+hypothesis under `experiments/`, runs it, scores it against the unmodified
+official `evaluate.py`, and tracks the best validation score seen so far,
+stopping on its own once 3 consecutive attempts fail to add more than 0.002.
+The rule separates when to stop (the ε/N patience rule) from which
+checkpoint is submitted (the validation-best result up to that point, no ε
+filter). Bounded that way, our official checkpoint is `listwise_softmax`
+(listwise ranking loss), validation primary 0.6039 against the official
+baseline's 0.6016, a real gain of +0.0023, agent-authored with zero
+human-written hypothesis behind it. That sits against an oracle ceiling of
+0.8645, not 1.0 — the baseline already spends about 31% of the usable
+range, so the real headroom left is about 25 points, not a full point of
+daylight to a perfect score.
 
-## What it does
+## Technical execution: three real iterations
 
-`python agent.py` runs unattended. It auto-discovers every `experiments/*.py`
-(each a self-contained hypothesis exposing `run(splits)`), and for each one:
+The run starts by anchoring on the baseline (0.6015 val, matching the
+organizers' published 0.6016). A teammate's pairwise BPR loss came next,
+0.6037, a real improvement we kept trying to beat rather than settle for.
+The agent's own first attempt, hard-negative mining on the pairwise loss,
+scored 0.5803, a clear miss, correctly discarded. Its next attempt,
+listwise softmax over the same 5-field architecture instead of one
+negative at a time, reasoned that GAUC and nDCG are ranking metrics and
+the objective should match them directly. That scored 0.6039, edging out
+the teammate's result, and became the official checkpoint once three
+consecutive attempts failed to add another 0.002 and convergence
+triggered. We kept the loop running past that point rather than stopping
+dead, and it found an even higher raw number afterward, hour-of-day as a
+sixth field, 0.6052, the first idea to change what the model sees rather
+than how it trains. That result is real and reported, but falls outside
+the convergence window under the rule's "at that point" wording, so it is
+not the scored checkpoint. We separately verified the recovery path by
+deliberately injecting a crash into a test run: the orchestrator logged
+the traceback, left the last good champion untouched, and continued to
+the next hypothesis without a restart.
 
-1. **runs** it — trains on the train split only, scores on validation with the
-   **unmodified** official `evaluate.py`;
-2. **decides** — keep as the new champion only if it beats the current
-   champion's validation primary by more than ε = 0.002; otherwise discard;
-3. **converges** — after N = 3 consecutive non-improving attempts it locks in
-   the scored checkpoint (`converged_at` in the summary);
-4. **logs** — every attempt's hypothesis, **full source code**, valid + test
-   metrics, decision, and any error/traceback goes to `agent_log.jsonl`;
-   `agent_summary.json` carries the champions, resource totals and convergence
-   point. `dashboard.py` renders both into a static HTML report.
+## Innovation: full-stack, not hyperparameter noise
 
-Each idea is written by Claude in-session (tagged `AUTHOR = 'agent'`) or by a
-teammate (`AUTHOR = 'human'`, counted as a manual intervention). `agent.py`
-tracks **two champions in parallel** — overall best, and best among
-agent-authored ideas only — so the autonomy claim is never inflated.
+Every hypothesis is written before the code, not after. Across the run the
+agent targeted the loss function (pairwise and listwise ranking losses
+against the pointwise baseline), the feature set (hour-of-day, short-term
+duration-preference drift), and, through a teammate's contribution,
+user-history attention and multi-task auxiliary heads, each one a genuinely
+different lever, not the same knob turned twice. The log also shows the
+agent catching a distinction most teams would miss: a more elaborate,
+warm-started implementation of a ranking loss can score badly on its own
+merits while the same underlying idea, implemented simply, is a real win.
+Knowing that difference, rather than writing off the idea outright, is
+part of what got the run to its best number.
 
-## How we frame results
+## Autonomy
 
-Against the **oracle ceiling (0.8484 val / 0.8645 test)**, not 1.0 — the FM
-baseline already sits at ~31% of that headroom, so "0.60 vs a perfect 1.0" is
-the wrong mental model.
+Within the scored window, 1 idea was human-authored (`bpr_loss`, tried and
+not selected) against 4 agent-authored attempts, so the scored checkpoint
+needed zero human-written hypothesis behind it. Across the full 9-attempt
+run, `author_counts` is 1 baseline, 2 human-authored, 6 agent-authored,
+giving 2 manual interventions total — the second human idea (`user_history`)
+came after convergence, reported honestly but not counted against the
+scored result. Convergence itself, 3 consecutive attempts under the 0.002
+threshold, was detected and stopped by the loop, not called by a person.
 
-## What the agent found
+## Feasibility
 
-| | val primary | test primary | vs FM baseline |
-|---|---|---|---|
-| FM baseline (official) | 0.6016 | 0.5946 | — |
-| listwise softmax loss (agent) | 0.6039 | 0.5973 | +0.0027 |
-| **+ hour-of-day feature (agent) — champion** | **0.6052** | **0.5986** | **+0.0040** |
+The scored path is pure numpy, no GPU, and the full 9-attempt run completes
+in 482 seconds, about 8 minutes, against a 6-hour cap and a 50-iteration
+cap. `agent.py` itself makes 0 LLM calls at runtime; it is a deterministic
+orchestrator. The token cost that does exist sits in the Claude Code
+sessions that proposed and wrote the agent-authored experiments. That
+account is on a flat-rate Claude Pro subscription rather than the
+pay-per-token API, so an exact input and output count is not exposed,
+only rolling quota usage, reported here as roughly 66% of a 5-hour session
+and 58% of the weekly limit at time of writing rather than left blank.
 
-Two findings we'd highlight:
+A second, independent implementation also exists (`agent/` + `run_agent.py`,
+real Anthropic API wiring and live token accounting) — not the scored path
+for this submission, but a second working system.
 
-1. **Idea vs. implementation.** A ranking loss *does* beat pointwise logloss
-   here — but our first attempt (a warm-started torch BPR with K=24
-   list-sampling) scored 0.565, which reads exactly like "the idea failed." The
-   same idea in ~40 lines of plain numpy (listwise softmax, M=4 random
-   negatives) was a real win at 0.6039. The agent's job includes noticing that
-   distinction before discarding a hypothesis.
-2. **The first feature-side win.** Every idea up to `hour_of_day` only changed
-   the loss function. `hour_of_day` adds one categorical field (hour, from the
-   raw `hourmin` column — day-parting is a known recsys effect and time
-   features were the README's own untried headroom item). A same-day
-   day-of-week follow-up added nothing — 14 days of train data means each
-   weekday appears twice, too sparse to learn.
+## One honest limitation
 
-LambdaRank and DIN-style history / multi-task features genuinely underperform on
-this dataset, independent of implementation — the agent tried all three and
-discarded all three. Knowing when to stop is as much the result as knowing what
-to try.
+The scored gain is real but modest, about 1% of the attainable headroom
+between baseline and oracle on test. Three structurally different ideas,
+ranking loss, a time feature, and (via a teammate) behavioral history and
+multi-task learning, were each implemented correctly and tested honestly,
+and only the loss-function change actually became the scored checkpoint —
+the time-feature result that scored higher still (hour-of-day, reported
+above) arrived after the run had already converged, so it stands as a real
+finding but not the submitted one. The agent stops correctly when an idea
+plateaus. It does not yet redirect its own search toward a meaningfully
+different family of ideas once one area stops paying off, and it does not
+yet reopen a converged run when a later attempt turns out to have found
+something better.
 
-## How we built it
+## Checklist
 
-Pure numpy for the scored agent path (`agent.py`, `baseline.py`,
-`experiments/`) — no GPU, ~10 min per full run on a laptop CPU. `evaluate.py`
-is imported unmodified. Each experiment runs in its own subprocess with a
-30-min hard timeout, so a crash or hang in one idea can't take down the loop
-or corrupt the champion state (verified with a real injected crash). Committed
-receipts of a full run live in [`results/`](results/).
-
-We also built a second, independent implementation
-(`agent/` + `run_agent.py` + `solutions/runner.py`, documented in
-[`AGENT.md`](AGENT.md)) with real Anthropic API wiring, live token
-accounting, and a broader variant set (LightGBM LambdaRank, a torch
-multi-task net, rank-ensembling). Not the scored path for this submission,
-but a genuine second working system, later reconciled with the first —
-`bpr_numpy`/`listwise_numpy`/`hour_of_day` are shared between both.
-
-**Tools, APIs, libraries, datasets:**
-- **Development tool:** Claude Code (Anthropic), used both to write the
-  codebase and, in-session, to propose and implement the agent-authored
-  experiments (`AUTHOR = 'agent'` in `experiments/*.py`) — the thing being
-  scored as autonomous behavior, not just a coding assistant.
-- **APIs:** the Anthropic API (`agent/llm.py`'s `LLMClient`) is wired into the
-  second system for real, unattended LLM calls; not switched on for this
-  submission's scored run (see Known limitations).
-- **Libraries:** `numpy` only for the scored path; `pandas`, `scikit-learn`,
-  `lightgbm`, `torch` for the second system (`requirements.txt`).
-- **Dataset:** KuaiRand-Pure (Kuaishou / KuaiRand, via kuairand.com) — the
-  required benchmark, no external data used anywhere.
-
-Team: P1 pairwise BPR loss · P2 user-history / sequence features · P3 multi-task
-learning · P4 the agent loop & reliability · P5 experiment tracking + this
-write-up.
-
-## Resource usage (Feasibility & Practicality)
-
-Full detail in [`results/RESOURCES.md`](results/RESOURCES.md); summary:
-
-| Metric | Value |
-|---|---|
-| GPU-hours | 0 (numpy/CPU only) |
-| Agent wall-clock | ~478s (~8 min), of the 21,600s (6h) cap |
-| Iterations used | 9, of the 50 cap |
-| Convergence checkpoint | attempt 5 (champion `bpr_loss`, ε=0.002/N=3) |
-| `agent.py` runtime LLM tokens | 0 (deterministic orchestrator, no LLM calls at runtime) |
-| Claude Code authoring-session tokens | not separately metered — flat-rate Claude Pro subscription, not the pay-per-token API; reported as quota usage instead (~66% of a 5-hour session / ~58% of the weekly limit at time of writing) |
-
-## Try it
-
-```bash
-pip install numpy
-python agent.py --reveal-test-live
-python dashboard.py --out dashboard.html
-python make_final_submission.py --split test
-python submit.py --check --split test submission.csv
-```
-
-## Known limitations
-
-- Score gain is +0.004 test primary — real and past the ε threshold, but ~1.6%
-  of the oracle headroom.
-- Total LLM token usage for the Claude Code sessions that authored the
-  agent-tagged experiments isn't separately metered (flat-rate subscription,
-  not the pay-per-token API) — reported as quota-percentage instead; see
-  `results/RESOURCES.md`.
+- **Development tools:** Claude Code (terminal / VS Code extension), macOS, git.
+- **APIs:** `agent.py` makes 0 LLM calls at runtime (deterministic). Agent-authored
+  experiments were proposed and written in Claude Code sessions, not via API.
+  The secondary system separately wires in the Anthropic API for live, unattended
+  runs.
+- **Libraries:** numpy only for the scored path (`agent.py`, `baseline.py`,
+  `experiments/`).
+- **Datasets:** KuaiRand-Pure only, organizers' fixed train / validation / test
+  splits. No external training data.

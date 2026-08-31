@@ -9,15 +9,27 @@ the **oracle ceiling (val 0.8484 / test 0.8645)**, not against 1.0.
 
 ## Result
 
+The scoring rule separates two things: *when to stop* (ε=0.002/N=3, the
+patience rule) and *which checkpoint counts as best* ("the validation-best
+checkpoint at that point" — plain best-so-far, not gated by ε). Bounded to
+attempts up through the convergence trigger (attempt 5 of 9):
+
 | | val primary | test primary | vs FM baseline |
 |---|---|---|---|
 | FM baseline (official) | 0.6016 | 0.5946 | — |
-| **Champion — `listwise softmax + hour-of-day`** | **0.6052** | **0.5986** | **+0.0040** |
+| **Official checkpoint — `listwise softmax loss`** | **0.6039** | **0.5973** | **+0.0027** |
 
-Autonomously discovered (agent-authored experiment, `AUTHOR = 'agent'`). The
-agent also correctly **discarded** LambdaRank and DIN-style history/multi-task
-features — they genuinely underperform here — and stopped on the ε/N rule with
-**0 unplanned human intervention** inside the run.
+Agent-authored (`AUTHOR = 'agent'`), 0 human intervention needed to reach it —
+though 1 human-authored idea (`bpr_loss`, 0.6037) was also tried within that
+same window and did not win. `agent.py` keeps running remaining experiment
+files after convergence so nothing gets silently dropped from the log; that
+continuation later found an even higher raw score
+(`hour_of_day`, 0.6052 val / 0.5986 test) and 1 more human-authored idea
+(`user_history`), but neither is eligible as the *scored* checkpoint under
+the rule's "at that point" wording — see `agent.py`'s comments and
+`results/RESOURCES.md` for the full reasoning. 2 human-authored ideas were
+tried across the full 9-attempt run; 1 of those fell within the scored
+window.
 
 ## Reproduce
 

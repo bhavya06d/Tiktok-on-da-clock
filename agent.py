@@ -195,6 +195,22 @@ def main():
     converged_at = None
     champion_at_convergence = champion_at_convergence_test = None
 
+    # The rule's two mechanisms are separate and must be tracked separately:
+    #   - `no_improve`/`champion_*` (eps-gated) decide WHEN to stop searching.
+    #   - `running_best_*` (plain argmax, no eps) is "the validation-best
+    #     checkpoint" the rule actually asks to submit - snapshotted, bounded
+    #     to attempts up through the convergence trigger ("at that point"),
+    #     the moment convergence first fires. A later, larger raw score found
+    #     by an experiment the loop chose to run *after* convergence (for
+    #     logging completeness) is real and worth reporting, but is not the
+    #     officially scored checkpoint under a plain reading of "at that point".
+    running_best_name = running_best_valid_primary = running_best_test = None
+    official_checkpoint_name = official_checkpoint_valid_primary = None
+    official_checkpoint_test = None
+    auto_running_best_name = auto_running_best_valid_primary = auto_running_best_test = None
+    official_auto_checkpoint_name = official_auto_checkpoint_valid_primary = None
+    official_auto_checkpoint_test = None
+
     run_t0 = time.time()
 
     for priority, name, mod, author in experiments:
@@ -233,6 +249,12 @@ def main():
                 converged_at = len(history)
                 champion_at_convergence = champion_name
                 champion_at_convergence_test = champion_test
+                official_checkpoint_name = running_best_name
+                official_checkpoint_valid_primary = running_best_valid_primary
+                official_checkpoint_test = running_best_test
+                official_auto_checkpoint_name = auto_running_best_name
+                official_auto_checkpoint_valid_primary = auto_running_best_valid_primary
+                official_auto_checkpoint_test = auto_running_best_test
                 print(f"\nCONVERGED at attempt {len(history)} (incl. this failure): "
                       f"{a.patience} consecutive non-improving attempts.")
             continue
@@ -250,6 +272,11 @@ def main():
             decision = 'DISCARDED'
             no_improve += 1
 
+        # Plain argmax, no eps gate - this is "the validation-best checkpoint",
+        # tracked independently of the eps-gated stopping decision above.
+        if running_best_valid_primary is None or vp > running_best_valid_primary:
+            running_best_name, running_best_valid_primary, running_best_test = name, vp, res['test']
+
         auto_decision = None
         if author == 'agent':
             auto_first = auto_champion_valid_primary is None
@@ -261,6 +288,10 @@ def main():
                 auto_champion_test = res['test']
             else:
                 auto_decision = 'DISCARDED (autonomous track)'
+            if auto_running_best_valid_primary is None or vp > auto_running_best_valid_primary:
+                auto_running_best_name = name
+                auto_running_best_valid_primary = vp
+                auto_running_best_test = res['test']
 
         imp_str = 'n/a (first)' if first else f"{improvement:+.4f}"
         test_str = f"  test primary={res['test']['primary']:.4f}" if a.reveal_test_live else ""
@@ -282,12 +313,44 @@ def main():
             converged_at = len(history)
             champion_at_convergence = champion_name
             champion_at_convergence_test = champion_test
+            official_checkpoint_name = running_best_name
+            official_checkpoint_valid_primary = running_best_valid_primary
+            official_checkpoint_test = running_best_test
+            official_auto_checkpoint_name = auto_running_best_name
+            official_auto_checkpoint_valid_primary = auto_running_best_valid_primary
+            official_auto_checkpoint_test = auto_running_best_test
             print(f"\nCONVERGED at attempt {len(history)}: {a.patience} consecutive "
-                  f"attempts with improvement <= {a.eps}. Scored checkpoint locked "
-                  f"in here; still running any remaining experiment files so "
-                  f"nothing already-discovered gets silently dropped.")
+                  f"attempts with improvement <= {a.eps}. Official checkpoint "
+                  f"('validation-best at that point', plain argmax, no eps gate) "
+                  f"locked in here; still running any remaining experiment files "
+                  f"so nothing already-discovered gets silently dropped from the "
+                  f"log, but nothing found after this point is eligible to be "
+                  f"the scored checkpoint.")
+
+    # The rule also treats hitting the iteration/wall-clock cap as convergence
+    # ("whichever comes first"). If the loop ended that way rather than via
+    # the eps/N streak, the official checkpoint was never snapshotted above -
+    # do it now, bounded to the full run since a cap ends the run outright.
+    if official_checkpoint_name is None and running_best_name is not None:
+        converged = True
+        converged_at = converged_at if converged_at is not None else len(history)
+        official_checkpoint_name = running_best_name
+        official_checkpoint_valid_primary = running_best_valid_primary
+        official_checkpoint_test = running_best_test
+        official_auto_checkpoint_name = auto_running_best_name
+        official_auto_checkpoint_valid_primary = auto_running_best_valid_primary
+        official_auto_checkpoint_test = auto_running_best_test
 
     # ---------------- summary ----------------
+    print(f"\n=== OFFICIAL CHECKPOINT (validation-best at convergence, no eps "
+          f"gate - this is what 'the submission scored for ranking' means): "
+          f"{official_checkpoint_name} | valid primary="
+          f"{(official_checkpoint_valid_primary or 0):.4f} ===")
+    if official_checkpoint_test:
+        print(f"    test  GAUC {official_checkpoint_test['GAUC']:.4f} | nDCG@5 "
+              f"{official_checkpoint_test['nDCG@5']:.4f} | primary "
+              f"{official_checkpoint_test['primary']:.4f}")
+
     print(f"\n=== OVERALL BEST: {champion_name} | valid primary="
           f"{(champion_valid_primary or 0):.4f} (any author) ===")
     if champion_test:
@@ -320,7 +383,22 @@ def main():
     tok_in, tok_out = a.llm_tokens_in, a.llm_tokens_out
     total_llm_tokens = (tok_in + tok_out) if (tok_in is not None and tok_out is not None) else None
 
+    # Manual interventions bounded to the officially scored window (attempts
+    # up through converged_at), matching what the official checkpoint is
+    # itself bounded to - a human-authored idea tried only after convergence
+    # doesn't count against the score that was actually submitted.
+    scored_window = history[:converged_at] if converged_at is not None else history
+    manual_interventions_in_scored_window = sum(
+        1 for e in scored_window if e.get('author') == 'human')
+
     summary = {
+        'official_checkpoint': official_checkpoint_name,
+        'official_checkpoint_valid_primary': official_checkpoint_valid_primary,
+        'official_checkpoint_test': official_checkpoint_test,
+        'official_auto_checkpoint': official_auto_checkpoint_name,
+        'official_auto_checkpoint_valid_primary': official_auto_checkpoint_valid_primary,
+        'official_auto_checkpoint_test': official_auto_checkpoint_test,
+        'manual_interventions_in_scored_window': manual_interventions_in_scored_window,
         'champion': champion_name,
         'champion_valid_primary': champion_valid_primary,
         'champion_test': champion_test,
