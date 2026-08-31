@@ -41,19 +41,19 @@ All token cost is in the **Claude Code sessions** that proposed and wrote the
 `AUTHOR = 'agent'` experiments (`listwise_softmax`, `hour_of_day`,
 `bpr_hard_negative`, `bpr_hard_negative_warmstart`, `seq_dur_drift`).
 
-> **TODO before submission — fill this in.** In Claude Code run `/cost`, and/or
-> open Anthropic Console → *Usage* for the project's working dates. Sum input +
-> output across the authoring sessions. Then either re-run
-> `python agent.py --reveal-test-live --llm-tokens-in <X> --llm-tokens-out <Y>`
-> (fast — parsed data is cached), or edit `agent_summary.json`'s
-> `llm_tokens_input` / `llm_tokens_output` / `total_llm_tokens` and this table:
+**Why there's no exact token count:** the authoring account is on **Claude
+Pro**, a flat-rate subscription, not the pay-per-token API — Anthropic's own
+account panel for this plan type shows usage as a percentage of a rolling
+quota, not an input/output token count (that granularity is only exposed to
+metered API accounts). `agent.py --llm-tokens-in/--llm-tokens-out` exists for
+teams on the API who can pull an exact number from Anthropic Console → Usage;
+this run used neither.
 
 | Metric | Value |
 |---|---|
-| `agent.py` runtime tokens | **0** (deterministic, no LLM) |
-| Claude Code authoring sessions | `<N>` |
-| Model | `<claude-... — check /model in Claude Code>` |
-| Input tokens (authoring) | `<~X>` |
-| Output tokens (authoring) | `<~Y>` |
-| **Total LLM tokens** | `<~X + Y>` |
-| Estimated cost | `<$Z>` |
+| `agent.py` runtime tokens | **0** (deterministic orchestrator, no LLM calls at runtime) |
+| Authoring account type | Claude Pro (flat-rate subscription) |
+| Exact input/output tokens | not exposed on this plan type |
+| Session quota used (5h rolling) | **~66%**, at time of writing |
+| Weekly quota used (7-day rolling) | **~58%**, at time of writing |
+| Estimated cost | N/A — flat monthly subscription, not metered per call |

@@ -67,15 +67,50 @@ to try.
 
 ## How we built it
 
-Pure numpy for the agent path (`agent.py`, `baseline.py`, `experiments/`) — no
-GPU, ~10 min per full run on a laptop CPU. `evaluate.py` is imported unmodified.
-Each experiment fails independently — a crashing experiment is caught, its
-traceback logged, and the loop continues. Committed receipts of a full run live
-in [`results/`](results/).
+Pure numpy for the scored agent path (`agent.py`, `baseline.py`,
+`experiments/`) — no GPU, ~10 min per full run on a laptop CPU. `evaluate.py`
+is imported unmodified. Each experiment runs in its own subprocess with a
+30-min hard timeout, so a crash or hang in one idea can't take down the loop
+or corrupt the champion state (verified with a real injected crash). Committed
+receipts of a full run live in [`results/`](results/).
+
+We also built a second, independent implementation
+(`agent/` + `run_agent.py` + `solutions/runner.py`, documented in
+[`AGENT.md`](AGENT.md)) with real Anthropic API wiring, live token
+accounting, and a broader variant set (LightGBM LambdaRank, a torch
+multi-task net, rank-ensembling). Not the scored path for this submission,
+but a genuine second working system, later reconciled with the first —
+`bpr_numpy`/`listwise_numpy`/`hour_of_day` are shared between both.
+
+**Tools, APIs, libraries, datasets:**
+- **Development tool:** Claude Code (Anthropic), used both to write the
+  codebase and, in-session, to propose and implement the agent-authored
+  experiments (`AUTHOR = 'agent'` in `experiments/*.py`) — the thing being
+  scored as autonomous behavior, not just a coding assistant.
+- **APIs:** the Anthropic API (`agent/llm.py`'s `LLMClient`) is wired into the
+  second system for real, unattended LLM calls; not switched on for this
+  submission's scored run (see Known limitations).
+- **Libraries:** `numpy` only for the scored path; `pandas`, `scikit-learn`,
+  `lightgbm`, `torch` for the second system (`requirements.txt`).
+- **Dataset:** KuaiRand-Pure (Kuaishou / KuaiRand, via kuairand.com) — the
+  required benchmark, no external data used anywhere.
 
 Team: P1 pairwise BPR loss · P2 user-history / sequence features · P3 multi-task
 learning · P4 the agent loop & reliability · P5 experiment tracking + this
 write-up.
+
+## Resource usage (Feasibility & Practicality)
+
+Full detail in [`results/RESOURCES.md`](results/RESOURCES.md); summary:
+
+| Metric | Value |
+|---|---|
+| GPU-hours | 0 (numpy/CPU only) |
+| Agent wall-clock | ~478s (~8 min), of the 21,600s (6h) cap |
+| Iterations used | 9, of the 50 cap |
+| Convergence checkpoint | attempt 5 (champion `bpr_loss`, ε=0.002/N=3) |
+| `agent.py` runtime LLM tokens | 0 (deterministic orchestrator, no LLM calls at runtime) |
+| Claude Code authoring-session tokens | not separately metered — flat-rate Claude Pro subscription, not the pay-per-token API; reported as quota usage instead (~66% of a 5-hour session / ~58% of the weekly limit at time of writing) |
 
 ## Try it
 
