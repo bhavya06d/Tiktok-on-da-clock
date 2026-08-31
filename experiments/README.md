@@ -75,9 +75,12 @@ A second, LLM-in-the-loop agent implementation also exists in `agent/` +
 `solutions/runner.py` (real Anthropic API calls, live token accounting,
 demonstrated crash recovery) - see `AGENT.md`. It's a different, arguably
 more literal take on "the agent writes its own code" than the file-discovery
-approach here, and hasn't been reconciled with this system yet - worth a
-team decision on whether to merge, keep both, or pick one before final
-submission, not something either half of the team should decide alone.
+approach here. **Reconciled, not competing:** the two systems' broken
+dependencies/imports were fixed, and the same discoveries
+(`bpr_numpy`/`listwise_numpy`/`hour_of_day`) are ported into both, verified
+to reproduce identical scores through either harness. `agent.py` here is the
+scored path for this submission (see top-level `README.md`); the other
+remains documented as a second, independently working system.
 
 ## How the agent uses this
 
